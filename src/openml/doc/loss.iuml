@@ -1,0 +1,47 @@
+@startuml
+
+class BaseLoss  {
+  - name : str
+  + __init__() : void
+  + forward() : void
+  + documentation() : str
+}
+
+class CrossEntropyLoss {
+}
+
+class MeanSquaredErrorLoss {
+}
+
+class DiceLoss {
+    - smooth : float
+}
+
+class FocalLoss {
+    - alpha : float
+    - gamma : float
+}
+
+class HuberLoss {
+    - delta : float
+}
+
+class KLDivergenceLoss {
+    esp: float
+}
+
+class CustomLoss {}
+
+CustomLoss --|> BaseLoss : heritage
+CrossEntropyLoss --|> BaseLoss : heritage
+MeanSquaredErrorLoss --|> BaseLoss : heritage
+DiceLoss --|> BaseLoss : heritage
+FocalLoss --|> BaseLoss : heritage
+HuberLoss --|> BaseLoss : heritage
+KLDivergenceLoss --|> BaseLoss : heritage
+
+class LossFactory {
+    create_loss(loss_name: str) : BaseLoss
+}
+
+@enduml
