@@ -15,7 +15,7 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
-          paths: [src]          # <-- Indique à mkdocstrings où chercher le code source
+          paths: [src]
           options:
             docstring_style: google
 
