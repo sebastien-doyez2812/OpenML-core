@@ -1,10 +1,14 @@
-class BaseModel:
-    def __init__(self):
-        pass
+import torch
+import torch.nn as nn
+
+class BaseModel(nn.Module):
+    def __init__(self, name:str):
+        super(BaseModel, self).__init__(name=name)
 
     def help(self):
         print("This function will open the documentation for the model.")
         pass
+    
 
     def train(self, data):
         print("This function will train the model with the provided data.")
