@@ -1,37 +1,99 @@
-class BaseModel:
-    def __init__(self, name: str = "BaseModel"):
+import torch
+import torch.nn as nn
+
+class BaseModel(nn.Module):
+    def __init__(self, name: str = "BaseModel", model = None, metrics = None, loss_fn = None, optimizer = None):
+        super().__init__()
         self.name = name
+        self.model = model
+        self.metrics = metrics
+        self.loss_fn = loss_fn
+        self.optimizer = optimizer
 
     def help(self):
-        print(f"This function will open the documentation for the {self.name} model.")
-        pass
+        raise NotImplementedError("Subclasses should implement this method.")
+
+    def create_model(self):
+        raise NotImplementedError("Subclasses should implement this method.")
+        
 
     def train(self, data, epochs, batch_size):
+        if self.name == "BaseModel":
+            raise NotImplementedError("Subclasses should implement this method.")
+        if self.model == None or self.name == "BaseModel":
+            raise ValueError("Model has not been created. Please call create_model() before training.")
+        if self.loss_fn == None:
+            raise ValueError("Loss function has not been set. Please set a loss function before training.")
+        
         for current_epoch in range(epochs):
             print(f"Epoch {current_epoch + 1}/{epochs}")
+            for i in range(0, len(data), batch_size):
+                X_batch = data[i:i + batch_size]
+                Y_batch = data[i:i + batch_size]  
 
-            # Here you would implement the training logic for your model
-            pass
+                
+                Pred = self.model(X_batch)
+                loss = self.loss_fn(Pred, Y_batch)
 
+                self.optimizer.zero_grad()
+                loss.backward()
+
+                self.optimizer.step()
+            print(f"Loss = {loss.item()}")
+            
     def predict(self, data):
-        print(f"This function will make predictions using the trained {self.name} model.")
-        pass
+        if self.model == None or self.name == "BaseModel":
+            raise ValueError("Model has not been created. Please call create_model() before predicting.")
+
+        return self.model(data)
 
     def evaluate(self, data):
-        print(f"This function will evaluate the {self.name} model's performance on the provided data.")
-        pass
+        if self.model == None or self.name == "BaseModel":
+            raise ValueError("Model has not been created. Please call create_model() before evaluating.")
+        if self.metrics is None:
+            raise ValueError("No metrics have been defined for evaluation. Please define metrics before evaluating.")
+        
+        self.model.eval()
+        dict_metrics = {}
+
+        with torch.no_grad():
+            for current_data in data:
+                X_batch, Y_batch = current_data
+                predictions = self.model(X_batch)
+
+                for name_metric, metric_formula in self.metrics:
+                    metric_value = metric_formula(predictions, Y_batch) 
+                    if name_metric not in dict_metrics:
+                        dict_metrics[name_metric] = 0.0
+                    dict_metrics[name_metric] += metric_value.item()
+
+            for name_metric in dict_metrics:
+                dict_metrics[name_metric] /= len(data)
+                
+        return dict_metrics
 
     def get_model_info(self):
         print(f"This function will return information about the {self.name} model.")
         pass
 
     def save_model(self, file_path):
-        print(f"This function will save the {self.name} model to the specified file path: {file_path}.")
-        pass
+        self.model.eval()
+        torch.save(self.model.state_dict(), file_path)
+        print(f"Model saved to {file_path}")
+
+    def load_model(self, file_path, is_train_mode=False):
+        self.model.load_state_dict(torch.load(file_path))
+        if is_train_mode:
+            self.model.train()
+        else:
+            self.model.eval()
+        print(f"Model loaded from {file_path}")
+
+    def save_model_in_onnx(self, file_path, input_sample):
+        self.model.eval()
+        torch.onnx.export(self.model, input_sample, file_path)
+        print(f"Model saved in ONNX format to {file_path}")
 
     def get_metrics(self):
         print(f"This function will return the evaluation metrics of the {self.name} model.")
-        pass
-
-    def load_board(self):
         pass
