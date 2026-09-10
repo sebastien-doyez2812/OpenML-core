@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torch.utils.data import DataLoader
 
 class BaseModel(nn.Module):
     def __init__(self, name: str = "BaseModel", model = None, metrics = None, loss_fn = None, optimizer = None):
@@ -17,37 +18,39 @@ class BaseModel(nn.Module):
         raise NotImplementedError("Subclasses should implement this method.")
         
 
-    def train(self, data, epochs, batch_size):
+    def train(self, train_loader: DataLoader, epochs: int = 100):
         if self.name == "BaseModel":
             raise NotImplementedError("Subclasses should implement this method.")
         if self.model == None or self.name == "BaseModel":
             raise ValueError("Model has not been created. Please call create_model() before training.")
         if self.loss_fn == None:
             raise ValueError("Loss function has not been set. Please set a loss function before training.")
+        if self.optimizer == None:
+            raise ValueError("Optimizer has not been set. Please set an optimizer before training.")
         
+        self.model.train()
         for current_epoch in range(epochs):
+            total_loss = 0.0
             print(f"Epoch {current_epoch + 1}/{epochs}")
-            for i in range(0, len(data), batch_size):
-                X_batch = data[i:i + batch_size]
-                Y_batch = data[i:i + batch_size]  
-
-                
-                Pred = self.model(X_batch)
-                loss = self.loss_fn(Pred, Y_batch)
-
+            for X_batch, Y_batch in train_loader:
                 self.optimizer.zero_grad()
+                prediction = self.model(X_batch)
+                loss = self.loss_fn(prediction, Y_batch)
                 loss.backward()
-
                 self.optimizer.step()
-            print(f"Loss = {loss.item()}")
+                total_loss += loss.item()
+            avg_loss = total_loss / len(train_loader)
+            print(f"Loss = {avg_loss:.4f}")
             
     def predict(self, data):
         if self.model == None or self.name == "BaseModel":
             raise ValueError("Model has not been created. Please call create_model() before predicting.")
 
-        return self.model(data)
+        self.model.eval()
+        with torch.no_grad():
+            return self.model(data)
 
-    def evaluate(self, data):
+    def evaluate(self, eval_loader: DataLoader):
         if self.model == None or self.name == "BaseModel":
             raise ValueError("Model has not been created. Please call create_model() before evaluating.")
         if self.metrics is None:
@@ -57,8 +60,7 @@ class BaseModel(nn.Module):
         dict_metrics = {}
 
         with torch.no_grad():
-            for current_data in data:
-                X_batch, Y_batch = current_data
+            for X_batch, Y_batch in eval_loader:
                 predictions = self.model(X_batch)
 
                 for name_metric, metric_formula in self.metrics:
@@ -68,7 +70,7 @@ class BaseModel(nn.Module):
                     dict_metrics[name_metric] += metric_value.item()
 
             for name_metric in dict_metrics:
-                dict_metrics[name_metric] /= len(data)
+                dict_metrics[name_metric] /= len(eval_loader)
                 
         return dict_metrics
 
@@ -93,7 +95,3 @@ class BaseModel(nn.Module):
         self.model.eval()
         torch.onnx.export(self.model, input_sample, file_path)
         print(f"Model saved in ONNX format to {file_path}")
-
-    def get_metrics(self):
-        print(f"This function will return the evaluation metrics of the {self.name} model.")
-        pass
