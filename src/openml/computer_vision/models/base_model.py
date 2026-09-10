@@ -1,37 +1,36 @@
-import torch
-import torch.nn as nn
-
-class BaseModel(nn.Module):
-    def __init__(self, name:str):
-        super(BaseModel, self).__init__(name=name)
+class BaseModel:
+    def __init__(self, name: str = "BaseModel"):
+        self.name = name
 
     def help(self):
-        print("This function will open the documentation for the model.")
+        print(f"This function will open the documentation for the {self.name} model.")
         pass
-    
 
-    def train(self, data):
-        print("This function will train the model with the provided data.")
-        pass
+    def train(self, data, epochs, batch_size):
+        for current_epoch in range(epochs):
+            print(f"Epoch {current_epoch + 1}/{epochs}")
+
+            # Here you would implement the training logic for your model
+            pass
 
     def predict(self, data):
-        print("This function will make predictions using the trained model.")
+        print(f"This function will make predictions using the trained {self.name} model.")
         pass
 
     def evaluate(self, data):
-        print("This function will evaluate the model's performance on the provided data.")
+        print(f"This function will evaluate the {self.name} model's performance on the provided data.")
         pass
 
     def get_model_info(self):
-        print("This function will return information about the model.")
+        print(f"This function will return information about the {self.name} model.")
         pass
 
     def save_model(self, file_path):
-        print(f"This function will save the model to the specified file path: {file_path}.")
+        print(f"This function will save the {self.name} model to the specified file path: {file_path}.")
         pass
 
     def get_metrics(self):
-        print("This function will return the evaluation metrics of the model.")
+        print(f"This function will return the evaluation metrics of the {self.name} model.")
         pass
 
     def load_board(self):

@@ -1,0 +1,24 @@
+@startuml
+class BaseModel {
+  - name : str
+  + __init__() : void
+  + help() : void
+  + train() : void
+  + predict() : void
+  + evaluate() : void
+  + get_model_info() : dict
+  + save_model(path: str) : void
+  + get_metrics() : dict
+  + load_board() : void
+}
+
+class Unet {
+  - depth : int
+  - input_size : tuple
+  - attention_unet : bool
+  - deep_supervision : bool
+  + forward(x) : Tensor
+}
+
+Unet --|> BaseModel : heritage
+@enduml
