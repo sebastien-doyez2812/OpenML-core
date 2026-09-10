@@ -1,0 +1,26 @@
+site_name: OpenMLcore Documentation
+theme:
+  name: material
+  palette:
+    scheme: default
+    primary: indigo
+    accent: deep purple
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - content.code.copy
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+
+nav:
+  - Accueil: index.md
+  - API Reference:
+      - Pertes (Losses): api/loss.md
+      - Modèles (Models): api/model.md

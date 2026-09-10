@@ -1,4 +1,4 @@
-# OpenML, Open source Package for Machine learning
+# OpenML-core, Open source Package for Machine learning
 
 
 ## Why OpenML?
