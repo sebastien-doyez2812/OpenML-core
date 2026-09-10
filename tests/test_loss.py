@@ -1,4 +1,4 @@
-from openml.computer_vision.loss.loss import *
+from openmlcore.loss.loss import *
 
 def test_cross_entropy_loss():
     loss = CrossEntropyLoss()
