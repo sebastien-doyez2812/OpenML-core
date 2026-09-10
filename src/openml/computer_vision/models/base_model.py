@@ -84,7 +84,7 @@ class BaseModel(nn.Module):
         print(f"Model saved to {file_path}")
 
     def load_model(self, file_path, is_train_mode=False):
-        self.model.load_state_dict(torch.load(file_path))
+        self.model.load_state_dict(torch.load(file_path, weights_only=True))
         if is_train_mode:
             self.model.train()
         else:
