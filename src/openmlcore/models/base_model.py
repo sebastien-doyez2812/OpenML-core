@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torchinfo import summary
 from torch.utils.data import DataLoader
 
 class BaseModel(nn.Module):
@@ -17,7 +18,6 @@ class BaseModel(nn.Module):
     def create_model(self):
         raise NotImplementedError("Subclasses should implement this method.")
         
-
     def train(self, train_loader: DataLoader, epochs: int = 100):
         if self.name == "BaseModel":
             raise NotImplementedError("Subclasses should implement this method.")
@@ -75,8 +75,10 @@ class BaseModel(nn.Module):
         return dict_metrics
 
     def get_model_info(self):
-        print(f"This function will return information about the {self.name} model.")
-        pass
+        if self.model == None or self.name == "BaseModel":
+            raise ValueError("Model has not been created. Please call create_model() before getting model info.")
+        
+        return summary(self.model)
 
     def save_model(self, file_path):
         self.model.eval()
