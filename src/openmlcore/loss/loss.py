@@ -47,10 +47,37 @@ class DiceLoss(BaseLoss):
         self.smooth = smooth
 
     def forward(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        outputs = torch.sigmoid(outputs)
-        intersection = (outputs * targets).sum()
-        dice_score = (2. * intersection + self.smooth) / (outputs.sum() + targets.sum() + self.smooth)
-        return 1 - dice_score
+        num_classes = outputs.shape[1]
+
+        if num_classes == 1:
+            outputs = torch.sigmoid(outputs)
+            # Correction: targets.dim() avec des parenthèses
+            target = targets.unsqueeze(1).float() if targets.dim() == 3 else targets.float()
+            
+            intersection = (outputs * target).sum(dim=(2, 3))
+            union = outputs.sum(dim=(2, 3)) + target.sum(dim=(2, 3))
+            dice_score = (2. * intersection + self.smooth) / (union + self.smooth)
+            return 1.0 - dice_score.mean()
+
+        # 2. CAS MULTI-CLASSES (output_channels > 1)
+        else:
+            outputs = F.softmax(outputs, dim=1)
+
+            # Priorité explicite des conditions avec parenthèses
+            if targets.dim() == 3 or (targets.dim() == 4 and targets.shape[1] == 1):
+                targets = targets.squeeze(1) if targets.dim() == 4 else targets
+                
+                # Correction: conversion explicite en .long() pour F.one_hot
+                targets_one_hot = F.one_hot(targets.long(), num_classes=num_classes) # [B, H, W, C]
+                targets_one_hot = targets_one_hot.permute(0, 3, 1, 2).float()         # [B, C, H, W]
+            else:
+                targets_one_hot = targets.float()
+
+            intersection = (outputs * targets_one_hot).sum(dim=(2, 3))
+            union = outputs.sum(dim=(2, 3)) + targets_one_hot.sum(dim=(2, 3))
+            dice_score = (2. * intersection + self.smooth) / (union + self.smooth)
+            
+            return 1.0 - dice_score.mean()
 
 class FocalLoss(BaseLoss):
     def __init__(self, alpha=0.25, gamma=2.0):

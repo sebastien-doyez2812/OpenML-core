@@ -54,7 +54,7 @@ class UnetTorch(nn.Module):
 
 class UNet(BaseModel):
     def __init__(self, input_channels=1, output_channels=1, depth=4, initial_filters=64, **kwargs):
-        super(UNet, self).__init__(name="UNet", **kwargs)
+        super().__init__(name="UNet", **kwargs)
         self.input_channels = input_channels
         self.output_channels = output_channels
         self.depth = depth
