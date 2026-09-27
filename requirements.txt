@@ -1,4 +1,7 @@
 pytest
 torch
+tqdm
 onnx
 onnxscript
+torchinfo
+datasets

@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
+from torchinfo import summary
 from torch.utils.data import DataLoader
+from tqdm.auto import tqdm
 
 class BaseModel(nn.Module):
     def __init__(self, name: str = "BaseModel", model = None, metrics = None, loss_fn = None, optimizer = None):
@@ -17,7 +19,6 @@ class BaseModel(nn.Module):
     def create_model(self):
         raise NotImplementedError("Subclasses should implement this method.")
         
-
     def train(self, train_loader: DataLoader, epochs: int = 100):
         if self.name == "BaseModel":
             raise NotImplementedError("Subclasses should implement this method.")
@@ -31,16 +32,28 @@ class BaseModel(nn.Module):
         self.model.train()
         for current_epoch in range(epochs):
             total_loss = 0.0
-            print(f"Epoch {current_epoch + 1}/{epochs}")
-            for X_batch, Y_batch in train_loader:
+            total_steps = len(train_loader)
+            progress_bar = tqdm(
+                train_loader,
+                total=total_steps,
+                desc=f"Epoch {current_epoch + 1}/{epochs}",
+                unit="batch",
+                dynamic_ncols=True,
+            )
+            for idx, (X_batch, Y_batch) in enumerate(progress_bar, start=1):
                 self.optimizer.zero_grad()
                 prediction = self.model(X_batch)
                 loss = self.loss_fn(prediction, Y_batch)
                 loss.backward()
                 self.optimizer.step()
-                total_loss += loss.item()
+                batch_loss = loss.item()
+                total_loss += batch_loss
+                progress_bar.set_postfix(
+                    batch_loss=f"{batch_loss:.4f}",
+                    avg_loss=f"{total_loss / idx:.4f}",
+                )
             avg_loss = total_loss / len(train_loader)
-            print(f"Loss = {avg_loss:.4f}")
+            tqdm.write(f"Epoch {current_epoch + 1}/{epochs} — average loss: {avg_loss:.4f}")
             
     def predict(self, data):
         if self.model == None or self.name == "BaseModel":
@@ -75,8 +88,10 @@ class BaseModel(nn.Module):
         return dict_metrics
 
     def get_model_info(self):
-        print(f"This function will return information about the {self.name} model.")
-        pass
+        if self.model == None or self.name == "BaseModel":
+            raise ValueError("Model has not been created. Please call create_model() before getting model info.")
+        
+        return summary(self.model)
 
     def save_model(self, file_path):
         self.model.eval()
