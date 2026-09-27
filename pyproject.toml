@@ -10,6 +10,7 @@ name = "openml"
 version = "0.1.0"
 dependencies = [
     "torch",
+    "tqdm",
     "pytest",
     "mkdocs-material",
     "mkdocstrings",
