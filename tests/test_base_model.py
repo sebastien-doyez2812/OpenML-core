@@ -4,7 +4,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchgen import model
 from torchgen import model
-from openml.computer_vision.models.base_model import *
+from openmlcore.models.base_model import *
 
 class DummyModel(BaseModel):
     def __init__(self):
