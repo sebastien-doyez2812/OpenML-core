@@ -39,19 +39,24 @@ dataset = datasets.OxfordIIITPet(
     download=True,
 )
 
-train_dataset = Subset(dataset, range(32))
-train_loader = DataLoader(dataset, batch_size=4, shuffle=True)
+val_dataset = Subset(dataset, range(32))
+train_loader = DataLoader(dataset    , batch_size=4, shuffle=True)
+val_loader   = DataLoader(val_dataset, batch_size=4, shuffle= True)
 
 
 # Create the model:
-myUnet = UNet(input_channels=3, output_channels=3, depth=4, initial_filters=16, loss_fn= DiceLoss(), metrics=[("MSE", "pixel_acc", lambda y_pred, y_true: torch.mean((y_pred - y_true) ** 2))])
+metrics = {
+    "MSE": lambda y_pred, y_true: torch.mean((y_pred - y_true) ** 2)
+}
+
+myUnet = UNet(input_channels=3, output_channels=3, depth=4, initial_filters=32, loss_fn= DiceLoss(), metrics=metrics)
 myUnet.create_model()
-myUnet.optimizer = torch.optim.Adam(params=myUnet.parameters(), lr=0.001)
+myUnet.optimizer = torch.optim.Adam(params=myUnet.parameters(), lr=1e-4)
 
 myUnet.get_model_info()
 
 # Train the model:
-myUnet.train(train_loader, epochs=50)
+myUnet.train(train_loader,val_loader, epochs=50)
 
 #Test the model:
 data_iter = iter(train_loader)
