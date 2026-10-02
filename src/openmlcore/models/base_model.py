@@ -64,7 +64,7 @@ class BaseModel(nn.Module):
             # Validation:
             if val_loader:
                 self.model.eval()
-                dict_metrics = {name:0.0 for name, _ in self.metrics}
+                dict_metrics = {name:0.0 for name in self.metrics}
                 val_progress_bar = tqdm(
                     val_loader,
                     total=len(val_loader),
@@ -78,16 +78,16 @@ class BaseModel(nn.Module):
                         X_batch, Y_batch = X_batch.to(self.device), Y_batch.to(self.device)
 
                         prediction = self.model(X_batch)
-                        for name_metric, metric_formula in self.metrics:
-                            metric_value = metric_formula(prediction, Y_batch) 
+                        for name_metric in self.metrics:
+                            metric_value = self.metrics[name_metric](prediction, Y_batch)
                             if name_metric not in dict_metrics:
                                 dict_metrics[name_metric] = 0.0
                             dict_metrics[name_metric] += metric_value.item()
                         
                     for name_metric in dict_metrics:
                         dict_metrics[name_metric] /= len(val_loader)
-                    # tqdm.write(f"Epoch {current_epoch + 1}/{epochs} — " + f"{name_metric} = {dict_metrics[name_metric]}" for name_metric, _ in self.metrics)
-                    metrics_str = " | ".join([f"{name}: {dict_metrics[name]:.4f}" for name, _ in self.metrics])
+                       
+                    metrics_str = " | ".join([f"{name}: {dict_metrics[name]:.4f}" for name, _ in dict_metrics.items()])
                     tqdm.write(f"Epoch {current_epoch + 1}/{epochs} — Validation: {metrics_str}")               
 
             
