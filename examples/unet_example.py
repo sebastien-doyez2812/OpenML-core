@@ -16,34 +16,6 @@ from datasets import load_dataset
 
 import matplotlib.pyplot as plt
 
-# CITYSCAPES_MAPPING = {
-#     0: 255, 1: 255, 2: 255, 3: 255, 4: 255, 5: 255, 6: 255,
-#     7: 0,   # Road -> Class 0
-#     8: 1,   # Sidewalk -> Class 1
-#     9: 255, 10: 255,
-#     11: 2,  # Building -> Class 2
-#     12: 3,  # Wall -> Class 3
-#     13: 4,  # Fence -> Class 4
-#     14: 255, 15: 255, 16: 255,
-#     17: 5,  # Pole -> Class 5
-#     18: 255,
-#     19: 6,  # Traffic light -> Class 6
-#     20: 7,  # Traffic sign -> Class 7
-#     21: 8,  # Vegetation -> Class 8
-#     22: 9,  # Terrain -> Class 9
-#     23: 10, # Sky -> Class 10
-#     24: 11, # Person -> Class 11
-#     25: 12, # Rider -> Class 12
-#     26: 13, # Car -> Class 13
-#     27: 14, # Truck -> Class 14
-#     28: 15, # Bus -> Class 15
-#     29: 255, 30: 255,
-#     31: 16, # Train -> Class 16
-#     32: 17, # Motorcycle -> Class 17
-#     33: 18, # Bicycle -> Class 18
-#     -1: 255
-# }
-
 CITYSCAPES_MAPPING = {
     0: 255, 1: 255, 2: 255, 3: 255, 4: 255, 5: 255, 6: 255,
     7: 0,   # Road -> Class 0
@@ -51,28 +23,28 @@ CITYSCAPES_MAPPING = {
     9: 255, 10: 255,
     11: 2,  # Building -> Class 2
     12: 3,  # Wall -> Class 3
-    13: 255,  # Fence -> Class 4
+    13: 255,  
     14: 255, 15: 255, 16: 255,
-    17: 255,  # Pole -> Class 5
+    17: 255,  
     18: 255,
-    19: 255,  # Traffic light -> Class 6
-    20: 255,  # Traffic sign -> Class 7
-    21: 255,  # Vegetation -> Class 8
-    22: 255,  # Terrain -> Class 9
-    23: 255, # Sky -> Class 10
-    24: 255, # Person -> Class 11
-    25: 255, # Rider -> Class 12
-    26: 4, # Car -> Class 13
-    27: 4, # Truck -> Class 14
-    28: 4, # Bus -> Class 15
+    19: 255,  
+    20: 255,  
+    21: 255,  
+    22: 255,  
+    23: 255, 
+    24: 255, 
+    25: 255, 
+    26: 4, # Car ->  Class 4
+    27: 4, # Truck -> Class 4
+    28: 4, # Bus -> Class 4
     29: 255, 30: 255,
-    31: 4, # Train -> Class 16
-    32: 4, # Motorcycle -> Class 17
-    33: 4, # Bicycle -> Class 18
+    31: 4, # Train -> Class 4
+    32: 4, # Motorcycle -> Class 4
+    33: 4, # Bicycle -> Class 4
     -1: 255
 }
 transforms = v2.Compose([
-    v2.ToDtype(torch.float32, scale=True), # passe en [0.0, 1.0]
+    v2.ToDtype(torch.float32, scale=True), 
     v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 ])
 
