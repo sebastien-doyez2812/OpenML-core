@@ -1,12 +1,13 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+import numpy as np
 
 class BaseLoss(nn.Module):
     def __init__(self, name: str = "BaseLoss", doc_url: str = ""):
         super().__init__()
         self.name = name
+        self.smooth = 1e-6
         self.doc_url = doc_url
 
     def forward(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
@@ -20,32 +21,61 @@ class BaseLoss(nn.Module):
         except Exception as e:
             print(f"[-] {e}")
 
-    def _to_one_hot_clean(self, targets: torch.Tensor, num_classes: int, index_ignore: int):
-        """Helper pour transformer [B, H, W] en [B, C, H, W] One-Hot tout en isolant 255."""
-        valids = (targets != index_ignore)
-        mask_cleaned = targets.clone()
-        mask_cleaned[~valids] = 0
-        
-        targets_one_hot = F.one_hot(mask_cleaned.long(), num_classes=num_classes) # [B, H, W, C]
-        targets_one_hot = targets_one_hot.permute(0, 3, 1, 2).float()             # [B, C, H, W]
-        
-        valid_mask = valids.unsqueeze(1).float() # [B, 1, H, W]
-        return targets_one_hot * valid_mask, valid_mask
-
+    
 #############################
 #   Class Loss Functions    #
 #############################
 
-class CrossEntropyLoss(BaseLoss):
-    def __init__(self, index_ignore=255):
-        super().__init__(name="CrossEntropyLoss", doc_url="https://pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html")
-        self.index_ignore = index_ignore
-        self.loss_fn = nn.CrossEntropyLoss(ignore_index=self.index_ignore)
+class BCEWithLogitsLoss(BaseLoss):
+    def __init__(self, weights=None):
+        super().__init__(name="BCEWithLogitsLoss", doc_url="https://pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html")
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        pos_weights = None
+        if weights is not None:
+            if not isinstance(weights, torch.Tensor):
+                pos_weights = torch.tensor(weights, device=device, dtype=torch.float32)
+            else:
+                pos_weights = weights.to(device)
+
+            if pos_weights.ndim == 1:
+                pos_weights = pos_weights.view(-1, 1, 1)
+        self.loss_fn = nn.BCEWithLogitsLoss(pos_weight=pos_weights)
 
     def forward(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        if targets.dim() == 4 and targets.shape[1] == 1:
-            targets = targets.squeeze(1)
-        return self.loss_fn(outputs, targets.long())
+        return self.loss_fn(outputs, targets.float())
+
+class DiceLoss(BaseLoss):
+    def __init__(self, weights = None):
+        super().__init__(name="DiceLoss", doc_url="https://arxiv.org/abs/1606.04797")
+        self.weights = weights
+
+    def forward(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        probs = torch.sigmoid(outputs)
+        probs   = probs.view  (probs.size(0)  , probs.size(1), -1)
+        targets = targets.view(targets.size(0), targets.size(1), -1)
+        
+        intersection = (probs * targets).sum(dim=2)
+        union        = probs.sum(dim=2) + targets.sum(dim=2) 
+
+        dice_score = (2.0 * intersection + self.smooth) / (union + self.smooth)
+        dice_loss = 1.0 - dice_score
+
+        if self.weights is not None:
+            if not isinstance(self.weights, torch.Tensor):
+                weights_tensor = torch.tensor(self.weights, device=outputs.device, dtype=outputs.dtype)
+            else:
+                weights_tensor = self.weights.to(outputs.device)
+
+            dice_loss = dice_loss * weights_tensor.unsqueeze(0)
+
+            return dice_loss.sum(dim=1).mean()
+        return dice_loss.mean()
+    
+# TODO:
+# 1 Hot encoding loss
+# 
+
 
 class MeanSquaredErrorLoss(BaseLoss):
     def __init__(self, index_ignore=255):
@@ -63,24 +93,6 @@ class MeanSquaredErrorLoss(BaseLoss):
         num_valids = valid_mask.sum() * num_classes
         return mse.sum() / torch.clamp(num_valids, min=1.0)
 
-class DiceLoss(BaseLoss):
-    def __init__(self, smooth=1e-6, index_ignore=255):
-        super().__init__(name="DiceLoss", doc_url="https://arxiv.org/abs/1606.04797")
-        self.smooth = smooth
-        self.index_ignore = index_ignore
-
-    def forward(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        num_classes = outputs.shape[1]
-        probs = F.softmax(outputs, dim=1)
-        
-        targets_one_hot, valid_mask = self._to_one_hot_clean(targets, num_classes, self.index_ignore)
-        probs = probs * valid_mask
-
-        intersection = (probs * targets_one_hot).sum(dim=(2, 3))
-        union = probs.sum(dim=(2, 3)) + targets_one_hot.sum(dim=(2, 3))
-        dice_score = (2. * intersection + self.smooth) / (union + self.smooth)
-            
-        return 1.0 - dice_score.mean()
 
 
 class FocalLoss(BaseLoss):
@@ -164,22 +176,22 @@ class KLDivergenceLoss(BaseLoss):
 #   Custom Loss implementation     #
 ####################################
 
-class LossFactory(BaseLoss):
+class LossFactory:
     @staticmethod
     def create(name: str, **kwargs ) -> BaseLoss:
         match name:
-            case "CrossEntropyLoss":
-                return CrossEntropyLoss()
+            case "BCE":
+                return BCEWithLogitsLoss(**kwargs)
             case "MeanSquaredErrorLoss":
-                return MeanSquaredErrorLoss()
+                return MeanSquaredErrorLoss(**kwargs)
             case "DiceLoss":
-                return DiceLoss()
+                return DiceLoss(**kwargs)
             case "FocalLoss":
-                return FocalLoss()
+                return FocalLoss(**kwargs)
             case "HuberLoss":
-                return HuberLoss()
+                return HuberLoss(**kwargs)
             case "KLDivergenceLoss":
-                return KLDivergenceLoss()
+                return KLDivergenceLoss(**kwargs)
             case _:
                 raise ValueError(f"Unknown loss function: {name}")
 
@@ -187,7 +199,7 @@ class CustomLoss(BaseLoss):
     def __init__(self, loss_fcns: list[BaseLoss], name: str, coefficients: list[float]):
         assert len(loss_fcns) == len(coefficients), "The number of loss functions must match the number of coefficients."
         super().__init__(name=name, doc_url=None)
-        self.loss_fcns = loss_fcns
+        self.loss_fcns = nn.ModuleList(loss_fcns)
         self.coefficients = coefficients
 
     def forward(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
