@@ -1,94 +1,119 @@
-import sys
-from pathlib import Path
+###     Example for a Basic UNet      ###
+# Author: Sebastien Doyez
+# This python script explained how to train a UNet modele using my Framework
 
+import sys
 import torch
+import matplotlib.pyplot as plt
 import numpy as np
-from torchvision import datasets
-from torchvision.transforms import v2, InterpolationMode
+import matplotlib.colors as mcolors
+
+from pathlib import Path
 root_dir = Path(__file__).resolve().parent.parent
 sys.path.append(str(root_dir))
 
-from openmlcore.loss.loss import CrossEntropyLoss, CustomLoss, DiceLoss, MeanSquaredErrorLoss
+from openmlcore.loss.loss import BCEWithLogitsLoss, CustomLoss, DiceLoss
 from torch.utils.data import DataLoader, Subset
 from src.openmlcore.models.UNets import UNet
 from src.openmlcore.base.data import SegmentationDataset
-from datasets import load_dataset
+from src.openmlcore.metrics.metrics import *
 
-import matplotlib.pyplot as plt
+from torchvision.transforms import v2
 
-CITYSCAPES_MAPPING = {
-    0: 255, 1: 255, 2: 255, 3: 255, 4: 255, 5: 255, 6: 255,
-    7: 0,   # Road -> Class 0
-    8: 1,   # Sidewalk -> Class 1
-    9: 255, 10: 255,
-    11: 2,  # Building -> Class 2
-    12: 3,  # Wall -> Class 3
-    13: 255,  
-    14: 255, 15: 255, 16: 255,
-    17: 255,  
-    18: 255,
-    19: 255,  
-    20: 255,  
-    21: 255,  
-    22: 255,  
-    23: 255, 
-    24: 255, 
-    25: 255, 
-    26: 4, # Car ->  Class 4
-    27: 4, # Truck -> Class 4
-    28: 4, # Bus -> Class 4
-    29: 255, 30: 255,
-    31: 4, # Train -> Class 4
-    32: 4, # Motorcycle -> Class 4
-    33: 4, # Bicycle -> Class 4
-    -1: 255
-}
+# Normalization:
 transforms = v2.Compose([
+    v2.ToImage(),
+    v2.Resize((256, 256), interpolation=v2.InterpolationMode.NEAREST),
     v2.ToDtype(torch.float32, scale=True), 
     v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 ])
 
-train_dataset = SegmentationDataset(root_dir="data/train", transform=transforms, map_label=CITYSCAPES_MAPPING)
-val_dataset = SegmentationDataset(root_dir="data/val", transform=transforms, map_label=CITYSCAPES_MAPPING)
+NB_CLASSES = 5
+
+# DataPreparation:
+train_dataset = SegmentationDataset(root_dir="data/train", num_classes=NB_CLASSES, transform=transforms)
+val_dataset   = SegmentationDataset(root_dir="data/val"  , num_classes=NB_CLASSES, transform=transforms)
 
 train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True)
 val_loader   = DataLoader(val_dataset, batch_size=4, shuffle=True)
 
-# Create the model:
-# TODO: put this in a specific metric file
-def accuracy(y_pred, y_true):
-    preds = torch.argmax(y_pred, dim=1)
-    mask = (y_true != 255)
-    return (preds[mask] == y_true[mask]).float().mean()
+# Metrics
 metrics = {
-    "Accuracy": accuracy
+    "Accuracy": accuracy,
+    "IoU": iou
 }
-myLoss = CustomLoss(loss_fcns=[ DiceLoss(index_ignore=255), CrossEntropyLoss(index_ignore=255)], name="CustomLoss", coefficients=[0.2, 0.8])
-myUnet = UNet(input_channels=3, output_channels=5, depth=4, initial_filters=32, loss_fn= myLoss, metrics=metrics)
-myUnet.create_model()
-myUnet.optimizer = torch.optim.Adam(params=myUnet.parameters(), lr=3e-4)
 
+weights_for_class = torch.tensor([1.0, 1.2, 1.5, 1.0, 1.0])
+assert len(weights_for_class) == NB_CLASSES
+weights_type_loss = [0.1, 0.9]
+
+myLoss = CustomLoss(loss_fcns=[ DiceLoss(weights=weights_for_class), BCEWithLogitsLoss(weights=weights_for_class)], name="CustomLoss", coefficients=weights_type_loss)
+myUnet = UNet(input_channels=3, output_channels=NB_CLASSES, depth=4, initial_filters=32, loss_fn= myLoss, metrics=metrics)
+myUnet.create_model()
+myUnet.optimizer = torch.optim.Adam(params=myUnet.parameters(), lr=8e-4)
+
+try:
+    myUnet.load_model("unet_model.pt")
+except Exception as e:
+    print(f"Error during loading the weights: {e}")
 myUnet.get_model_info()
 
 # Train the model:
-myUnet.train(train_loader,val_loader, epochs=50)
-
-#Test the model:
-data_iter = iter(train_loader)
-given_input, GT = next(data_iter)
-predictions = myUnet.predict(given_input)
-
-img=given_input[0].permute(1,2,0).cpu().numpy()
-pred_class = torch.argmax(predictions[0], dim=0).cpu().numpy()
-
-plt.subplot(1, 2, 1)
-plt.imshow(img)
-plt.imshow(pred_class, cmap='jet', alpha=0.5) # alpha gère la transparence (0 = invisible, 1 = opaque)
-plt.title("Image avec Overlay Masque")
-plt.axis("off")
-
-plt.show()
+myUnet.train(train_loader,val_loader, epochs=3)
 
 # Save the model:
-myUnet.save_model("unet_model.pth")
+myUnet.save_model("unet_model.pt")
 myUnet.save_model_in_onnx("unet_model.onnx", input_sample= torch.randn(1, 3, 64, 64)) #Inputsize = (batch_size, channels, height, width)
+
+# Final evaluation:
+metrics = myUnet.evaluate(val_loader)
+print(metrics)
+
+# Show the result:
+# Define the name of classes:
+# class_names = ["Water", "Land", "Road", "Building", "Vegetation", "Unlabeled"]
+class_names = ["Water", "Land", "Road", "Building", "Vegetation"]
+
+assert len(class_names) == NB_CLASSES
+cmap_6 = mcolors.ListedColormap(plt.cm.tab10.colors[:len(class_names)])
+
+# Run on validation...
+data_iter = iter(val_loader)
+for i in range(10):    
+    given_input, GT = next(data_iter)
+    predictions = myUnet.predict(given_input)
+
+    img = given_input[0].permute(1, 2, 0).cpu().numpy()
+    mean = np.array([0.485, 0.456, 0.406])
+    std = np.array([0.229, 0.224, 0.225])
+    img_unnormalized = np.clip(img * std + mean, 0, 1)
+    
+    img_rgb = img_unnormalized
+    pred_class = torch.argmax(predictions[0], dim=0).cpu().numpy()
+
+    if GT[0].ndim == 3:
+        gt_class = torch.argmax(GT[0], dim=0).cpu().numpy()
+    else:
+        gt_class = GT[0].cpu().numpy()
+
+    fig, axes = plt.subplots(1, 3, figsize=(18, NB_CLASSES))
+
+    axes[0].imshow(img_rgb)
+    axes[0].set_title("Image", fontsize=12)
+    axes[0].axis("off")
+
+    axes[1].imshow(img_rgb)
+    im_gt = axes[1].imshow(gt_class, cmap=cmap_6, alpha=0.5, vmin=0, vmax=5)
+    axes[1].set_title("Ground Truth", fontsize=12)
+    axes[1].axis("off")
+
+    axes[2].imshow(img_rgb)
+    im_pred = axes[2].imshow(pred_class, cmap=cmap_6, alpha=0.5, vmin=0, vmax=5)
+    axes[2].set_title("Prediction", fontsize=12)
+    axes[2].axis("off")
+
+    cbar = fig.colorbar(im_pred, ax=axes.ravel().tolist(), shrink=0.7, ticks=range(NB_CLASSES))
+    cbar.ax.set_yticklabels([f"{i}: {name}" for i, name in enumerate(class_names)])
+
+    plt.tight_layout()
+    plt.show()

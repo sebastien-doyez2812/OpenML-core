@@ -1,2 +1,10 @@
 __pycache__
-data/
+data/train
+data/val
+bin/
+*.pt
+*.onnx
+*.pth
+*.engine
+*.h5
+*.keras
