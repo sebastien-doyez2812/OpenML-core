@@ -1,7 +1,7 @@
 from openmlcore.loss.loss import *
 
-def test_cross_entropy_loss():
-    loss = CrossEntropyLoss()
+def test_BCEWithLogits_loss():
+    loss = BCEWithLogitsLoss()
     assert loss is not None
 
 def test_mean_squared_error_loss():

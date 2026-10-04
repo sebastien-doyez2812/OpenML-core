@@ -3,6 +3,7 @@ import torch.nn as nn
 from torchinfo import summary
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
+import numpy as np
 
 class BaseModel(nn.Module):
     def __init__(self, name: str = "BaseModel", model = None, metrics = None, loss_fn = None, optimizer = None, device = None):
@@ -20,7 +21,7 @@ class BaseModel(nn.Module):
     def create_model(self):
         raise NotImplementedError("Subclasses should implement this method.")
         
-    def train(self, train_loader: DataLoader,val_loader:DataLoader | None = None, epochs: int = 100):
+    def train(self, train_loader: DataLoader,val_loader:DataLoader | None = None, epochs: int = 100, save_checkpoint = True):
         if self.name == "BaseModel":
             raise NotImplementedError("Subclasses should implement this method.")
         if self.model == None or self.name == "BaseModel":
@@ -49,6 +50,7 @@ class BaseModel(nn.Module):
                 
                 self.optimizer.zero_grad()
                 prediction = self.model(X_batch)
+
                 loss = self.loss_fn(prediction, Y_batch)
                 loss.backward()
                 self.optimizer.step()
@@ -64,7 +66,9 @@ class BaseModel(nn.Module):
             # Validation:
             if val_loader:
                 self.model.eval()
-                dict_metrics = {name:0.0 for name in self.metrics}
+
+                dict_metrics_sum = {}
+                
                 val_progress_bar = tqdm(
                     val_loader,
                     total=len(val_loader),
@@ -72,25 +76,70 @@ class BaseModel(nn.Module):
                     unit="batch",
                     dynamic_ncols=True,
                 )
-                    # Take a portion of the data and test:
+
+                # Take a portion of the data and test:
                 with torch.no_grad():
                     for idx, (X_batch, Y_batch) in enumerate(val_progress_bar, start=1):
                         X_batch, Y_batch = X_batch.to(self.device), Y_batch.to(self.device)
 
                         prediction = self.model(X_batch)
-                        for name_metric in self.metrics:
-                            metric_value = self.metrics[name_metric](prediction, Y_batch)
-                            if name_metric not in dict_metrics:
-                                dict_metrics[name_metric] = 0.0
-                            dict_metrics[name_metric] += metric_value.item()
-                        
-                    for name_metric in dict_metrics:
-                        dict_metrics[name_metric] /= len(val_loader)
-                       
-                    metrics_str = " | ".join([f"{name}: {dict_metrics[name]:.4f}" for name, _ in dict_metrics.items()])
-                    tqdm.write(f"Epoch {current_epoch + 1}/{epochs} — Validation: {metrics_str}")               
 
+                        for name_metric, metric_fn in self.metrics.items():
+                            metric_value = metric_fn(prediction, Y_batch)
+
+                            if isinstance(metric_value, torch.Tensor):
+                                metric_value = metric_value.detach().cpu()
+                                if metric_value.ndim > 1:
+                                    metric_value = metric_value.mean(dim=0)
+                                
+                                if metric_value.ndim == 0:
+                                    metric_value = metric_value.item()
+                                else:
+                                    metric_value = metric_value.tolist()
+
+                            elif isinstance(metric_value, np.ndarray):
+                                if metric_value.ndim > 1:
+                                    metric_value = metric_value.mean(axis=0)
+                                
+                                if metric_value.ndim == 0:
+                                    metric_value = metric_value.item()
+                                else:
+                                    metric_value = metric_value.tolist()
+                            if isinstance(metric_value, list) and len(metric_value) > 0 and isinstance(metric_value[0], list):
+                                metric_value = [sum(col) / len(col) for col in zip(*metric_value)]
+
+                            if name_metric not in dict_metrics_sum:
+                                if isinstance(metric_value, list):
+                                    dict_metrics_sum[name_metric] = [0.0] * len(metric_value)
+                                else:
+                                    dict_metrics_sum[name_metric] = 0.0
+
+                            if isinstance(metric_value, list):
+                                for cls_i, val in enumerate(metric_value):
+                                    dict_metrics_sum[name_metric][cls_i] += float(val)
+                            else:
+                                dict_metrics_sum[name_metric] += float(metric_value)
+
+                num_batchs = len(val_loader)
+                metrics_summary_str = []
+
+                for name_metric, val_sum in dict_metrics_sum.items():
+                    if isinstance(val_sum, list):
+                        avg_list = [v/num_batchs for v in val_sum]
+                        mean_all_classes = sum(avg_list)/len(avg_list)
+
+                        class_details = ", ".join([f"C{i}:{v:.3f}" for i, v in enumerate(avg_list)])
+                        metrics_summary_str.append(f"{name_metric}_Mean: {mean_all_classes:.4f} ({class_details})")
+                    else:
+                        avg_val = val_sum / num_batchs
+                        metrics_summary_str.append(f"{name_metric}: {avg_val:.4f}")
+
+                formatted_metrics = " | ".join(metrics_summary_str)
+                tqdm.write(f"Epoch {current_epoch + 1}/{epochs} — Validation: {formatted_metrics}")
             
+            if save_checkpoint:
+                self.save_model(f"checkpoint_{self.name}.pt")
+
     def predict(self, data):
         if self.model == None or self.name == "BaseModel":
             raise ValueError("Model has not been created. Please call create_model() before predicting.")
@@ -111,23 +160,43 @@ class BaseModel(nn.Module):
             raise ValueError("No metrics have been defined for evaluation. Please define metrics before evaluating.")
 
         self.model.eval()
-        dict_metrics = {}
+        dict_metrics_sum = {}
 
         with torch.no_grad():
             for X_batch, Y_batch in eval_loader:
                 X_batch, Y_batch = X_batch.to(self.device), Y_batch.to(self.device)
                 predictions = self.model(X_batch)
 
-                for name_metric, metric_formula in self.metrics:
+                for name_metric, metric_formula in self.metrics.items():
                     metric_value = metric_formula(predictions, Y_batch) 
-                    if name_metric not in dict_metrics:
-                        dict_metrics[name_metric] = 0.0
-                    dict_metrics[name_metric] += metric_value.item()
+                    
+                    if isinstance(metric_value, torch.Tensor):
+                        metric_value = metric_value.cpu().tolist()
+                    elif isinstance(metric_value, np.ndarray):
+                        metric_value = metric_value.tolist()
 
-            for name_metric in dict_metrics:
-                dict_metrics[name_metric] /= len(eval_loader)
-                
-        return dict_metrics
+                    if name_metric not in dict_metrics_sum:
+                        if isinstance(metric_value, list):
+                            dict_metrics_sum[name_metric] = [0.0] * len(metric_value)
+                        else:
+                            dict_metrics_sum[name_metric] = 0.0
+
+                    if isinstance(metric_value, list):
+                        for cls_i, val in enumerate(metric_value):
+                            dict_metrics_sum[name_metric][cls_i] += val
+                    else:
+                        dict_metrics_sum[name_metric] += metric_value
+            
+            num_batches = len(eval_loader)
+            final_metrics = {}
+
+            for name_metrics, val_sum in dict_metrics_sum.items():
+                if isinstance(val_sum, list):
+                    final_metrics[name_metric] = [v / num_batches for v in val_sum]
+                else:
+                    final_metrics[name_metric] = val_sum / num_batches
+
+        return final_metrics
 
     def get_model_info(self):
         if self.model == None or self.name == "BaseModel":
@@ -146,7 +215,10 @@ class BaseModel(nn.Module):
             self.model.train()
         else:
             self.model.eval()
-        print(f"Model loaded from {file_path}")
+
+        # To make sure the modele is on the correct device:
+        self.model.to(self.device)
+        print(f"Model loaded from {file_path}, model is in {self.device} mode.")
 
     def save_model_in_onnx(self, file_path, input_sample):
         self.model.eval()

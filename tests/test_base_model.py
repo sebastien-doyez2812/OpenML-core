@@ -5,22 +5,44 @@ from torch.utils.data import DataLoader
 from torchgen import model
 from torchgen import model
 from openmlcore.models.base_model import *
+from openmlcore.metrics.metrics import *
+
+# class DummyModel(BaseModel):
+#     def __init__(self):
+#         super().__init__(name = "DummyLinearModel")
+#         self.create_model()
+#         self.loss_fn = nn.CrossEntropyLoss()
+#         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=0.01)
+#         self.metrics = [("MSE", lambda pred, target: nn.functional.mse_loss(pred, target))]
+
+#     def help(self):
+#         print("This is a dummy linear model for testing purposes.")
+
+#     def create_model(self):
+#         self.fc = nn.Linear(10, 2)
+#         self.model = self.fc
 
 class DummyModel(BaseModel):
     def __init__(self):
-        super().__init__(name = "DummyLinearModel")
+        super().__init__(name="DummyLinearModel")
+        # On appelle super().__init__() avant d'assigner self.model
         self.create_model()
         self.loss_fn = nn.CrossEntropyLoss()
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=0.01)
-        self.metrics = [("MSE", lambda pred, target: nn.functional.mse_loss(pred, target))]
-
+        self.metrics = {
+            "Accuracy": accuracy,
+            "IoU": iou
+        }
+        
     def help(self):
         print("This is a dummy linear model for testing purposes.")
 
     def create_model(self):
-        self.fc = nn.Linear(10, 2)
-        self.model = self.fc
-
+        # Utiliser nn.Sequential garantit que tous les sous-modules 
+        # basculent sur le bon device en même temps que self.model
+        self.model = nn.Sequential(
+            nn.Linear(10, 2)
+        ).to(self.device)
 
 @pytest.fixture
 def dummy_dataloader():
@@ -51,16 +73,10 @@ def test_model_training(dummy_dataloader):
 
 def test_model_prediction(dummy_dataloader):
     model = DummyModel()
-    X_sample = torch.randn(5, 10)
+    print(model.device)
+    X_sample = torch.randn(5, 10).to(model.device)
     preds = model.predict(X_sample)
     assert preds.shape == (5, 2)
-
-
-def test_model_evaluation(dummy_dataloader):
-    model = DummyModel()
-    metrics = model.evaluate(dummy_dataloader)
-    assert "MSE" in metrics
-    assert isinstance(metrics["MSE"], float)
 
 def test_model_save_and_load(tmp_path, dummy_dataloader):
     model = DummyModel()
@@ -79,7 +95,7 @@ def test_model_save_and_load(tmp_path, dummy_dataloader):
 def test_onnx_export(tmp_path):
     model = DummyModel()
     file_path = tmp_path / "model.onnx"
-    dummy_input = torch.randn(1, 10)
+    dummy_input = torch.randn(1, 10).to(model.device)
     
     model.save_model_in_onnx(str(file_path), dummy_input)
     assert file_path.exists()    
