@@ -1,6 +1,6 @@
 ###     Example for a Basic UNet      ###
 # Author: Sebastien Doyez
-# This python script explained how to train a Attention UNet modele using my Framework
+# This python script explained how to train a UNet++ modele using my Framework
 
 import sys
 import torch
@@ -14,7 +14,7 @@ sys.path.append(str(root_dir))
 
 from openmlcore.loss.loss import BCEWithLogitsLoss, CustomLoss, DiceLoss
 from torch.utils.data import DataLoader, Subset
-from src.openmlcore.models.attUnets import AttentionUNet
+from src.openmlcore.models.unetpp import UNetPP
 from src.openmlcore.base.data import SegmentationDataset
 from src.openmlcore.metrics.metrics import *
 
@@ -51,18 +51,18 @@ assert len(weights_for_class) == NB_CLASSES
 weights_type_loss = [0.7, 0.3]
 
 myLoss = CustomLoss(loss_fcns=[ DiceLoss(weights=weights_for_class), BCEWithLogitsLoss(weights=weights_for_class)], name="CustomLoss", coefficients=weights_type_loss)
-myAttUnet = AttentionUNet(input_channels=3, output_channels=NB_CLASSES, depth=4, initial_filters=32, loss_fn= myLoss, metrics=metrics)
+myAttUnet = UNetPP(input_channels=3, output_channels=NB_CLASSES, depth=4, initial_filters=32, loss_fn= myLoss, metrics=metrics)
 myAttUnet.create_model()
 myAttUnet.optimizer = torch.optim.Adam(params=myAttUnet.parameters(), lr=8e-4)
 
 myAttUnet.get_model_info()
 
 # Train the model:
-myAttUnet.train(train_loader,val_loader, epochs=600)
+myAttUnet.train(train_loader,val_loader, epochs=20)
 
 # Save the model:
-myAttUnet.save_model("attention_unet_model.pt")
-myAttUnet.save_model_in_onnx("attention_unet_model.onnx", input_sample= torch.randn(1, 3, 64, 64)) #Inputsize = (batch_size, channels, height, width)
+myAttUnet.save_model("unetpp_model.pt")
+myAttUnet.save_model_in_onnx("unetpp_model.onnx", input_sample= torch.randn(1, 3, 64, 64)) #Inputsize = (batch_size, channels, height, width)
 
 # Final evaluation:
 metrics = myAttUnet.evaluate(val_loader)
