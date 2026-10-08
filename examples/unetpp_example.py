@@ -51,21 +51,21 @@ assert len(weights_for_class) == NB_CLASSES
 weights_type_loss = [0.7, 0.3]
 
 myLoss = CustomLoss(loss_fcns=[ DiceLoss(weights=weights_for_class), BCEWithLogitsLoss(weights=weights_for_class)], name="CustomLoss", coefficients=weights_type_loss)
-myAttUnet = UNetPP(input_channels=3, output_channels=NB_CLASSES, depth=4, initial_filters=32, loss_fn= myLoss, metrics=metrics)
-myAttUnet.create_model()
-myAttUnet.optimizer = torch.optim.Adam(params=myAttUnet.parameters(), lr=8e-4)
-
-myAttUnet.get_model_info()
+myUnetpp = UNetPP(input_channels=3, output_channels=NB_CLASSES, depth=4, initial_filters=32, loss_fn= myLoss, metrics=metrics)
+myUnetpp.create_model()
+myUnetpp.optimizer = torch.optim.Adam(params=myUnetpp.parameters(), lr=8e-4)
+myUnetpp.load_model("checkpoint_UNet++.pt")
+myUnetpp.get_model_info()
 
 # Train the model:
-myAttUnet.train(train_loader,val_loader, epochs=20)
+myUnetpp.train(train_loader,val_loader, epochs=0)
 
 # Save the model:
-myAttUnet.save_model("unetpp_model.pt")
-myAttUnet.save_model_in_onnx("unetpp_model.onnx", input_sample= torch.randn(1, 3, 64, 64)) #Inputsize = (batch_size, channels, height, width)
+myUnetpp.save_model("unetpp_model.pt")
+myUnetpp.save_model_in_onnx("unetpp_model.onnx", input_sample= torch.randn(1, 3, 64, 64)) #Inputsize = (batch_size, channels, height, width)
 
 # Final evaluation:
-metrics = myAttUnet.evaluate(val_loader)
+metrics = myUnetpp.evaluate(val_loader)
 print(metrics)
 
 # Show the result:
@@ -80,7 +80,7 @@ cmap_6 = mcolors.ListedColormap(plt.cm.tab10.colors[:len(class_names)])
 data_iter = iter(val_loader)
 for i in range(10):    
     given_input, GT = next(data_iter)
-    predictions = myAttUnet.predict(given_input)
+    predictions = myUnetpp.predict(given_input)
 
     img = given_input[0].permute(1, 2, 0).cpu().numpy()
     mean = np.array([0.485, 0.456, 0.406])
