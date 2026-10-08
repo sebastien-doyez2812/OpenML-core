@@ -1,11 +1,17 @@
+import sys
 import pytest
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchgen import model
 from torchgen import model
-from openmlcore.models.base_model import *
-from openmlcore.metrics.metrics import *
+
+from pathlib import Path
+root_dir = Path(__file__).resolve().parent.parent
+sys.path.append(str(root_dir))
+
+from src.openmlcore.models.base_model import *
+from src.openmlcore.metrics.metrics import *
 
 # class DummyModel(BaseModel):
 #     def __init__(self):

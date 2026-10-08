@@ -1,4 +1,9 @@
-from openmlcore.loss.loss import *
+import sys
+from pathlib import Path
+root_dir = Path(__file__).resolve().parent.parent
+sys.path.append(str(root_dir))
+
+from src.openmlcore.loss.loss import *
 
 def test_BCEWithLogits_loss():
     loss = BCEWithLogitsLoss()
