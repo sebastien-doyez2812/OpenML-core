@@ -2,6 +2,7 @@ __pycache__
 data/train
 data/val
 bin/
+dist/
 *.pt
 *.onnx
 *.pth

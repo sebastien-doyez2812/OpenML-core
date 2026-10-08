@@ -14,21 +14,22 @@ sys.path.append(str(root_dir))
 
 from openmlcore.loss.loss import BCEWithLogitsLoss, CustomLoss, DiceLoss
 from torch.utils.data import DataLoader, Subset
-from src.openmlcore.models.unetpp import UNetPP
+from src.openmlcore.models.segformer import SegFormer
 from src.openmlcore.base.data import SegmentationDataset
 from src.openmlcore.metrics.metrics import *
 
 from torchvision.transforms import v2
 
+
+NB_CLASSES = 5
+SIZE = 256
 # Normalization:
 transforms = v2.Compose([
     v2.ToImage(),
-    v2.Resize((256, 256), interpolation=v2.InterpolationMode.NEAREST),
+    v2.Resize((SIZE, SIZE), interpolation=v2.InterpolationMode.NEAREST),
     v2.ToDtype(torch.float32, scale=True), 
     v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 ])
-
-NB_CLASSES = 5
 
 # DataPreparation:
 train_dataset = SegmentationDataset(root_dir="data/train", num_classes=NB_CLASSES, transform=transforms)
@@ -51,21 +52,21 @@ assert len(weights_for_class) == NB_CLASSES
 weights_type_loss = [0.7, 0.3]
 
 myLoss = CustomLoss(loss_fcns=[ DiceLoss(weights=weights_for_class), BCEWithLogitsLoss(weights=weights_for_class)], name="CustomLoss", coefficients=weights_type_loss)
-myUnetpp = UNetPP(input_channels=3, output_channels=NB_CLASSES, depth=4, initial_filters=32, loss_fn= myLoss, metrics=metrics)
-myUnetpp.create_model()
-myUnetpp.optimizer = torch.optim.Adam(params=myUnetpp.parameters(), lr=8e-4)
-myUnetpp.load_model("checkpoint_UNet++.pt")
-myUnetpp.get_model_info()
+mySegformer = SegFormer(input_channels=3, output_channels=NB_CLASSES, H = SIZE, W = SIZE, depth=4, initial_filters=32, loss_fn= myLoss, metrics=metrics)
+mySegformer.create_model()
+mySegformer.optimizer = torch.optim.Adam(params=mySegformer.parameters(), lr=8e-4)
+mySegformer.load_model("checkpoint_SegFormer.pt")
+mySegformer.get_model_info()
 
 # Train the model:
-myUnetpp.train(train_loader,val_loader, epochs=0)
+mySegformer.train(train_loader,val_loader, epochs=50)
 
 # Save the model:
-myUnetpp.save_model("unetpp_model.pt")
-myUnetpp.save_model_in_onnx("unetpp_model.onnx", input_sample= torch.randn(1, 3, 64, 64)) #Inputsize = (batch_size, channels, height, width)
+mySegformer.save_model("segformer_model.pt")
+mySegformer.save_model_in_onnx("segformer_model.onnx", input_sample= torch.randn(1, 3, SIZE, SIZE)) #Inputsize = (batch_size, channels, height, width)
 
 # Final evaluation:
-metrics = myUnetpp.evaluate(val_loader)
+metrics = mySegformer.evaluate(val_loader)
 print(metrics)
 
 # Show the result:
@@ -80,7 +81,7 @@ cmap_6 = mcolors.ListedColormap(plt.cm.tab10.colors[:len(class_names)])
 data_iter = iter(val_loader)
 for i in range(10):    
     given_input, GT = next(data_iter)
-    predictions = myUnetpp.predict(given_input)
+    predictions = mySegformer.predict(given_input)
 
     img = given_input[0].permute(1, 2, 0).cpu().numpy()
     mean = np.array([0.485, 0.456, 0.406])
