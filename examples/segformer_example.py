@@ -21,7 +21,7 @@ from src.openmlcore.metrics.metrics import *
 from torchvision.transforms import v2
 
 
-NB_CLASSES = 5
+NB_CLASSES = 1
 SIZE = 256
 # Normalization:
 transforms = v2.Compose([
@@ -47,19 +47,19 @@ metrics = {
     "F1": F1
 }
 
-weights_for_class = torch.tensor([4.0, 1.0, 4.0, 3.5, 2.0])
+weights_for_class = torch.tensor([1.0])
 assert len(weights_for_class) == NB_CLASSES
-weights_type_loss = [0.7, 0.3]
+weights_type_loss = [0.9, 0.1]
 
 myLoss = CustomLoss(loss_fcns=[ DiceLoss(weights=weights_for_class), BCEWithLogitsLoss(weights=weights_for_class)], name="CustomLoss", coefficients=weights_type_loss)
 mySegformer = SegFormer(input_channels=3, output_channels=NB_CLASSES, H = SIZE, W = SIZE, depth=4, initial_filters=32, loss_fn= myLoss, metrics=metrics)
 mySegformer.create_model()
-mySegformer.optimizer = torch.optim.Adam(params=mySegformer.parameters(), lr=8e-4)
-mySegformer.load_model("checkpoint_SegFormer.pt")
+mySegformer.optimizer = torch.optim.Adam(params=mySegformer.parameters(), lr=1e-3)
+# mySegformer.load_model("checkpoint_SegFormer.pt")
 mySegformer.get_model_info()
 
 # Train the model:
-mySegformer.train(train_loader,val_loader, epochs=50)
+mySegformer.train(train_loader,val_loader, epochs=600)
 
 # Save the model:
 mySegformer.save_model("segformer_model.pt")
