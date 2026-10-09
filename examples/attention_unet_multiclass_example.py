@@ -1,6 +1,6 @@
 ###     Example for a Basic UNet      ###
 # Author: Sebastien Doyez
-# This python script explained how to train a UNet++ modele using my Framework
+# This python script explained how to train a Attention UNet modele using my Framework
 
 import sys
 import torch
@@ -14,22 +14,21 @@ sys.path.append(str(root_dir))
 
 from openmlcore.loss.loss import BCEWithLogitsLoss, CustomLoss, DiceLoss
 from torch.utils.data import DataLoader, Subset
-from src.openmlcore.models.segformer import SegFormer
+from src.openmlcore.models.attUnets import AttentionUNet
 from src.openmlcore.base.data import SegmentationDataset
 from src.openmlcore.metrics.metrics import *
 
 from torchvision.transforms import v2
 
-
-NB_CLASSES = 1
-SIZE = 256
 # Normalization:
 transforms = v2.Compose([
     v2.ToImage(),
-    v2.Resize((SIZE, SIZE), interpolation=v2.InterpolationMode.NEAREST),
+    v2.Resize((256, 256), interpolation=v2.InterpolationMode.NEAREST),
     v2.ToDtype(torch.float32, scale=True), 
     v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 ])
+
+NB_CLASSES = 5
 
 # DataPreparation:
 train_dataset = SegmentationDataset(root_dir="data/train", num_classes=NB_CLASSES, transform=transforms)
@@ -47,31 +46,30 @@ metrics = {
     "F1": F1
 }
 
-weights_for_class = torch.tensor([1.0])
+weights_for_class = torch.tensor([4.0, 1.0, 4.0, 3.5, 2.0])
 assert len(weights_for_class) == NB_CLASSES
-weights_type_loss = [0.9, 0.1]
+weights_type_loss = [0.7, 0.3]
 
 myLoss = CustomLoss(loss_fcns=[ DiceLoss(weights=weights_for_class), BCEWithLogitsLoss(weights=weights_for_class)], name="CustomLoss", coefficients=weights_type_loss)
-mySegformer = SegFormer(input_channels=3, output_channels=NB_CLASSES, H = SIZE, W = SIZE, depth=4, initial_filters=32, loss_fn= myLoss, metrics=metrics)
-mySegformer.create_model()
-mySegformer.optimizer = torch.optim.Adam(params=mySegformer.parameters(), lr=1e-3)
-# mySegformer.load_model("checkpoint_SegFormer.pt")
-mySegformer.get_model_info()
+myAttUnet = AttentionUNet(input_channels=3, output_channels=NB_CLASSES, depth=4, initial_filters=32, loss_fn= myLoss, metrics=metrics)
+myAttUnet.create_model()
+myAttUnet.optimizer = torch.optim.Adam(params=myAttUnet.parameters(), lr=8e-4)
+
+myAttUnet.get_model_info()
 
 # Train the model:
-mySegformer.train(train_loader,val_loader, epochs=600)
+myAttUnet.train(train_loader,val_loader, epochs=600)
 
 # Save the model:
-mySegformer.save_model("segformer_model.pt")
-mySegformer.save_model_in_onnx("segformer_model.onnx", input_sample= torch.randn(1, 3, SIZE, SIZE)) #Inputsize = (batch_size, channels, height, width)
+myAttUnet.save_model("attention_unet_model.pt")
+myAttUnet.save_model_in_onnx("attention_unet_model.onnx", input_sample= torch.randn(1, 3, 64, 64)) #Inputsize = (batch_size, channels, height, width)
 
 # Final evaluation:
-metrics = mySegformer.evaluate(val_loader)
+metrics = myAttUnet.evaluate(val_loader)
 print(metrics)
 
 # Show the result:
 # Define the name of classes:
-# class_names = ["Water", "Land", "Road", "Building", "Vegetation", "Unlabeled"]
 class_names = ["Water", "Land", "Road", "Building", "Vegetation"]
 
 assert len(class_names) == NB_CLASSES
@@ -81,7 +79,7 @@ cmap_6 = mcolors.ListedColormap(plt.cm.tab10.colors[:len(class_names)])
 data_iter = iter(val_loader)
 for i in range(10):    
     given_input, GT = next(data_iter)
-    predictions = mySegformer.predict(given_input)
+    predictions = myAttUnet.predict(given_input)
 
     img = given_input[0].permute(1, 2, 0).cpu().numpy()
     mean = np.array([0.485, 0.456, 0.406])
