@@ -34,8 +34,9 @@ def accuracy(y_pred, y_true):
         final_metric[idx] = metric / num_batches 
     return final_metric
     
-def iou(y_pred, y_true,smooth = 1e-6):
-    preds = (y_pred > 0.0).float()
+def iou(y_pred, y_true, threshold = 0.5, smooth = 1e-6):
+    preds = (y_pred > threshold).float()
+
     preds = preds.view(preds.size(0), preds.size(1), -1)
     y_true = y_true.view(y_true.size(0), y_true.size(1), -1)
 
