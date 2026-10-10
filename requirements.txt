@@ -5,3 +5,6 @@ onnx
 onnxscript
 torchinfo
 datasets
+transformers
+timm
+safetensors
