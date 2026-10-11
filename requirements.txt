@@ -2,6 +2,7 @@ pytest
 torch
 tqdm
 onnx
+csv
 onnxscript
 torchinfo
 datasets
