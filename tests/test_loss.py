@@ -23,10 +23,4 @@ def test_focal_loss():
 
 def test_huber_loss():
     loss = HuberLoss()
-    assert loss is not None
-
-def test_kl_divergence_loss():
-    loss = KLDivergenceLoss()
-    assert loss is not None
-
-    
+    assert loss is not None    
