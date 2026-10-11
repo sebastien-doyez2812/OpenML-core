@@ -239,11 +239,11 @@ class BaseModel(nn.Module):
             num_batches = len(eval_loader)
             final_metrics = {}
 
-            for name_metrics, val_sum in dict_metrics_sum.items():
+            for current_metrics, val_sum in dict_metrics_sum.items():
                 if isinstance(val_sum, list):
-                    final_metrics[name_metric] = [v / num_batches for v in val_sum]
+                    final_metrics[current_metrics] = [v / num_batches for v in val_sum]
                 else:
-                    final_metrics[name_metric] = val_sum / num_batches
+                    final_metrics[current_metrics] = val_sum / num_batches
 
         return final_metrics
 
