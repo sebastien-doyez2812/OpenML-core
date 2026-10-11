@@ -4,6 +4,7 @@
 
 import sys
 import torch
+import mlflow
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.colors as mcolors
@@ -29,6 +30,7 @@ transforms = v2.Compose([
 ])
 
 NB_CLASSES = 5
+NAME_MODEL = "Unet++"
 
 # DataPreparation:
 train_dataset = SegmentationDataset(root_dir="data/train", num_classes=NB_CLASSES, transform=transforms)
@@ -51,18 +53,20 @@ assert len(weights_for_class) == NB_CLASSES
 weights_type_loss = [0.7, 0.3]
 
 myLoss = CustomLoss(loss_fcns=[ DiceLoss(weights=weights_for_class), BCEWithLogitsLoss(weights=weights_for_class)], name="CustomLoss", coefficients=weights_type_loss)
-myUnetpp = UNetPP(input_channels=3, output_channels=NB_CLASSES, depth=4, initial_filters=32, loss_fn= myLoss, metrics=metrics)
-myUnetpp.create_model()
-myUnetpp.optimizer = torch.optim.Adam(params=myUnetpp.parameters(), lr=8e-4)
-myUnetpp.load_model("checkpoint_UNet++.pt")
-myUnetpp.get_model_info()
 
-# Train the model:
-myUnetpp.train(train_loader,val_loader, epochs=0)
+with mlflow.start_run(run_name=NAME_MODEL):
+    myUnetpp = UNetPP(input_channels=3, output_channels=NB_CLASSES, depth=4, initial_filters=32, loss_fn= myLoss, metrics=metrics)
+    myUnetpp.create_model()
+    myUnetpp.optimizer = torch.optim.Adam(params=myUnetpp.parameters(), lr=8e-4)
+    myUnetpp.load_model("checkpoint_UNet++.pt")
+    myUnetpp.get_model_info()
 
-# Save the model:
-myUnetpp.save_model("unetpp_model.pt")
-myUnetpp.save_model_in_onnx("unetpp_model.onnx", input_sample= torch.randn(1, 3, 64, 64)) #Inputsize = (batch_size, channels, height, width)
+    # Train the model:
+    myUnetpp.train(train_loader,val_loader, epochs=0)
+
+    # Save the model:
+    myUnetpp.save_model("unetpp_model.pt")
+    myUnetpp.save_model_in_onnx("unetpp_model.onnx", input_sample= torch.randn(1, 3, 64, 64)) #Inputsize = (batch_size, channels, height, width)
 
 # Final evaluation:
 metrics = myUnetpp.evaluate(val_loader)

@@ -1,9 +1,10 @@
-###     Example for a Basic UNet      ###
+###     Example for a MobileUnetR      ###
 # Author: Sebastien Doyez
 # This python script explained how to train a MobileUnetR modele using my Framework
 
 import sys
 import torch
+import mlflow # Optionnal...
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.colors as mcolors
@@ -23,6 +24,8 @@ from torchvision.transforms import v2
 
 NB_CLASSES = 1
 SIZE = 256
+NAME_MODEL = "MobileUnetR"
+
 # Normalization:
 train_transforms = v2.Compose(
     [
@@ -66,20 +69,22 @@ assert len(weights_for_class) == NB_CLASSES
 weights_type_loss = [0.8, 0.2]
 
 myLoss = CustomLoss(loss_fcns=[ DiceLoss(weights=weights_for_class), BCEWithLogitsLoss(weights=weights_for_class)], name="CustomLoss", coefficients=weights_type_loss)
-# myMobileUnetR = MobileUnetR_v2(input_channels=3, output_channels=NB_CLASSES, loss_fn= myLoss, metrics=metrics)
-myMobileUnetR = MobileUnetR(input_channels=3, output_channels=NB_CLASSES, loss_fn= myLoss, metrics=metrics)
-myMobileUnetR.create_model()
-myMobileUnetR.load_model("mobileUnetR.pt")
 
-myMobileUnetR.optimizer = torch.optim.AdamW(params=myMobileUnetR.parameters(), lr=1e-4, weight_decay= 0.01, betas=(0.9, 0.999))
-myMobileUnetR.get_model_info()
+with mlflow.start_run(run_name=NAME_MODEL):
+    # myMobileUnetR = MobileUnetR_v2(input_channels=3, output_channels=NB_CLASSES, loss_fn= myLoss, metrics=metrics)
+    myMobileUnetR = MobileUnetR(input_channels=3, output_channels=NB_CLASSES, loss_fn= myLoss, metrics=metrics, use_mlflow= True)
+    myMobileUnetR.create_model()
+    myMobileUnetR.load_model("mobileUnetR.pt")
 
-# Train the model:
-myMobileUnetR.train(train_loader,val_loader, epochs=1)
+    myMobileUnetR.optimizer = torch.optim.AdamW(params=myMobileUnetR.parameters(), lr=1e-4, weight_decay= 0.01, betas=(0.9, 0.999))
+    myMobileUnetR.get_model_info()
 
-# Save the model:
-# myMobileUnetR.save_model("mobileUnetR.pt")
-# myMobileUnetR.save_model_in_onnx("mobileUnetR.onnx", input_sample= torch.randn(1, 3, SIZE, SIZE)) #Inputsize = (batch_size, channels, height, width)
+    # Train the model:
+    myMobileUnetR.train(train_loader,val_loader, epochs=3)
+
+    # Save the model:
+    myMobileUnetR.save_model("mobileUnetR.pt")
+    myMobileUnetR.save_model_in_onnx("mobileUnetR.onnx", input_sample= torch.randn(1, 3, SIZE, SIZE)) #Inputsize = (batch_size, channels, height, width)
 
 
 # Show the result:
