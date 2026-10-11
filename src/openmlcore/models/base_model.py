@@ -8,7 +8,7 @@ from tqdm.auto import tqdm
 import numpy as np
 
 class BaseModel(nn.Module):
-    def __init__(self, name: str = "BaseModel", model = None, metrics = None, loss_fn = None, optimizer = None, device = None, write_result_in_CSV = True, csv_path= None, use_mlflow = False):
+    def __init__(self, name: str = "BaseModel", model = None, metrics = None, loss_fn = None, optimizer = None, device = None, write_result_in_CSV = True, csv_path= None, use_mlflow = True):
         super().__init__()
         self.name = name
         self.model = model
