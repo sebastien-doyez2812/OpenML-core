@@ -1,4 +1,6 @@
 import torch
+import csv
+import mlflow
 import torch.nn as nn
 from torchinfo import summary
 from torch.utils.data import DataLoader
@@ -6,7 +8,7 @@ from tqdm.auto import tqdm
 import numpy as np
 
 class BaseModel(nn.Module):
-    def __init__(self, name: str = "BaseModel", model = None, metrics = None, loss_fn = None, optimizer = None, device = None):
+    def __init__(self, name: str = "BaseModel", model = None, metrics = None, loss_fn = None, optimizer = None, device = None, write_result_in_CSV = True, csv_path= None, use_mlflow = True):
         super().__init__()
         self.name = name
         self.model = model
@@ -14,6 +16,13 @@ class BaseModel(nn.Module):
         self.loss_fn = loss_fn
         self.optimizer = optimizer
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        
+        self.use_mlflow = use_mlflow
+        self.write_result_in_CSV = write_result_in_CSV
+        if csv_path is None:
+            self.csv_path = f"{self.name}.csv"
+        else:
+            self.csv_path = csv_path
 
     def help(self):
         raise NotImplementedError("Subclasses should implement this method.")
@@ -32,6 +41,27 @@ class BaseModel(nn.Module):
             raise ValueError("Optimizer has not been set. Please set an optimizer before training.")
 
         self.model.to(self.device)
+
+        # MLFlow:
+        if self.use_mlflow:
+            lr = self.optimizer.param_groups[0]['lr'] if self.optimizer and len(self.optimizer.param_groups) > 0 else None
+            mlflow.log_params({
+                "model_name": self.name,
+                "epochs": epochs,
+                "learning_rate": lr,
+                "device": str(self.device)
+            })
+
+        # CSV Logger:
+        if self.write_result_in_CSV:
+            csv_fields = ["epoch", "train_loss"]
+            for name_metric in self.metrics.keys():
+                csv_fields.append(f"val_{name_metric}")
+
+            with open(self.csv_path, 'w', newline='', encoding='utf-8') as file:
+                writer = csv.DictWriter(file, fieldnames=csv_fields, extrasaction='ignore')
+                writer.writeheader()   
+
         for current_epoch in range(epochs):
             # For each loop: a first phase of training and then validation.
             # Training:
@@ -63,6 +93,11 @@ class BaseModel(nn.Module):
             avg_loss = total_loss / len(train_loader)
             tqdm.write(f"Epoch {current_epoch + 1}/{epochs} — average loss: {avg_loss:.4f}")
 
+
+            # Create a dictionnary for the csv:
+            epoch_metrics = {"epoch": current_epoch,
+                             "train_loss" : avg_loss}
+            
             # Validation:
             if val_loader:
                 self.model.eval()
@@ -130,13 +165,27 @@ class BaseModel(nn.Module):
 
                         class_details = ", ".join([f"C{i}:{v:.3f}" for i, v in enumerate(avg_list)])
                         metrics_summary_str.append(f"{name_metric}_Mean: {mean_all_classes:.4f} ({class_details})")
+                        epoch_metrics[f"val_{name_metric}"] = mean_all_classes
+                        for idx, value in enumerate(avg_list):
+                            epoch_metrics[f"val_{name_metric}"] = value
+                    
                     else:
                         avg_val = val_sum / num_batchs
                         metrics_summary_str.append(f"{name_metric}: {avg_val:.4f}")
+                        epoch_metrics[f"val_{name_metric}"] = avg_val
+
 
                 formatted_metrics = " | ".join(metrics_summary_str)
                 tqdm.write(f"Epoch {current_epoch + 1}/{epochs} — Validation: {formatted_metrics}")
-            
+
+                if self.use_mlflow:
+                    mlflow.log_metrics(epoch_metrics, step=current_epoch + 1)
+                
+                if self.write_result_in_CSV:
+                    with open(self.csv_path, 'a', newline='', encoding='utf-8') as file:
+                        writer = csv.DictWriter(file, fieldnames=csv_fields, extrasaction='ignore')
+                        writer.writerow(epoch_metrics)
+                
             if save_checkpoint:
                 self.save_model(f"checkpoint_{self.name}.pt")
 

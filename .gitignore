@@ -9,3 +9,5 @@ dist/
 *.engine
 *.h5
 *.keras
+*.db
+*.csv

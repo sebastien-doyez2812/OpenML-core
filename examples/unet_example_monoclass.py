@@ -3,6 +3,7 @@
 # This python script explained how to train a UNet modele using my Framework
 
 import sys
+import mlflow # Optionnal
 import torch
 import matplotlib.pyplot as plt
 import numpy as np
@@ -17,8 +18,11 @@ from torch.utils.data import DataLoader, Subset
 from src.openmlcore.models.UNets import UNet
 from src.openmlcore.base.data import SegmentationDataset
 from src.openmlcore.metrics.metrics import *
-
 from torchvision.transforms import v2
+
+
+NB_CLASSES = 1
+NAME_MODEL = "Unet"
 
 # Normalization:
 transforms = v2.Compose([
@@ -27,8 +31,6 @@ transforms = v2.Compose([
     v2.ToDtype(torch.float32, scale=True), 
     v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 ])
-
-NB_CLASSES = 1
 
 # DataPreparation:
 train_dataset = SegmentationDataset(root_dir="data/train", num_classes=NB_CLASSES, transform=transforms)
@@ -51,22 +53,26 @@ assert len(weights_for_class) == NB_CLASSES
 weights_type_loss = [0.7, 0.3]
 
 myLoss = CustomLoss(loss_fcns=[ DiceLoss(weights=weights_for_class), BCEWithLogitsLoss(weights=weights_for_class)], name="CustomLoss", coefficients=weights_type_loss)
-myUnet = UNet(input_channels=3, output_channels=NB_CLASSES, depth=4, initial_filters=32, loss_fn= myLoss, metrics=metrics)
-myUnet.create_model()
-myUnet.optimizer = torch.optim.Adam(params=myUnet.parameters(), lr=8e-4)
 
-myUnet.load_model("unet_model.pt")
+# If you want to use mlflow:
+# Else, just remove the with and the indentation.
+with mlflow.start_run(run_name=NAME_MODEL):
+    myUnet = UNet(input_channels=3, output_channels=NB_CLASSES, depth=4, initial_filters=32, loss_fn= myLoss, metrics=metrics, use_mlflow= True)
+    myUnet.create_model()
+    myUnet.optimizer = torch.optim.Adam(params=myUnet.parameters(), lr=8e-4)
 
-# Train the model:
-# myUnet.train(train_loader,val_loader, epochs=1)
+    myUnet.load_model("unet_model.pt")
 
-# Save the model:
-# myUnet.save_model("unet_model.pt")
-# myUnet.save_model_in_onnx("unet_model.onnx", input_sample= torch.randn(1, 3, 64, 64)) #Inputsize = (batch_size, channels, height, width)
+    # Train the model:
+    myUnet.train(train_loader,val_loader, epochs=3)
+
+    # Save the model:
+    myUnet.save_model("unet_model.pt")
+    myUnet.save_model_in_onnx("unet_model.onnx", input_sample= torch.randn(1, 3, 64, 64)) #Inputsize = (batch_size, channels, height, width)
 
 # Final evaluation:
-# metrics = myUnet.evaluate(val_loader)
-# print(metrics)
+metrics = myUnet.evaluate(val_loader)
+print(metrics)
 
 # Show the result:
 # Define the name of classes:

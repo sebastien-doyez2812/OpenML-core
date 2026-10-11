@@ -317,7 +317,7 @@ class MobileUnetR(BaseModel):
 
 class MobileUnetR_v2(BaseModel):
     def __init__(self, input_channels=1, output_channels=1, **kwargs):
-        super().__init__(name="MobileUnetR", **kwargs)
+        super().__init__(name="MobileUnetR_apple_version", **kwargs)
         self.input_channels = input_channels
         self.output_channels = output_channels
 

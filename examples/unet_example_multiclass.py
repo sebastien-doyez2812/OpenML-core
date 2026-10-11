@@ -4,6 +4,7 @@
 
 import sys
 import torch
+import mlflow
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.colors as mcolors
@@ -29,7 +30,7 @@ transforms = v2.Compose([
 ])
 
 NB_CLASSES = 5
-
+NAME_MODEL = "Unet_Multiclass"
 # DataPreparation:
 train_dataset = SegmentationDataset(root_dir="data/train", num_classes=NB_CLASSES, transform=transforms)
 val_dataset   = SegmentationDataset(root_dir="data/val"  , num_classes=NB_CLASSES, transform=transforms)
@@ -51,22 +52,24 @@ assert len(weights_for_class) == NB_CLASSES
 weights_type_loss = [0.7, 0.3]
 
 myLoss = CustomLoss(loss_fcns=[ DiceLoss(weights=weights_for_class), BCEWithLogitsLoss(weights=weights_for_class)], name="CustomLoss", coefficients=weights_type_loss)
-myUnet = UNet(input_channels=3, output_channels=NB_CLASSES, depth=4, initial_filters=32, loss_fn= myLoss, metrics=metrics)
-myUnet.create_model()
-myUnet.optimizer = torch.optim.Adam(params=myUnet.parameters(), lr=8e-4)
 
-# try:
-#     myUnet.load_model("unet_model.pt")
-# except Exception as e:
-#     print(f"Error during loading the weights: {e}")
-# myUnet.get_model_info()
+with mlflow.start_run(run_name=NAME_MODEL):
+    myUnet = UNet(input_channels=3, output_channels=NB_CLASSES, depth=4, initial_filters=32, loss_fn= myLoss, metrics=metrics)
+    myUnet.create_model()
+    myUnet.optimizer = torch.optim.Adam(params=myUnet.parameters(), lr=8e-4)
 
-# Train the model:
-myUnet.train(train_loader,val_loader, epochs=1)
+    # try:
+    #     myUnet.load_model("unet_model.pt")
+    # except Exception as e:
+    #     print(f"Error during loading the weights: {e}")
+    # myUnet.get_model_info()
 
-# Save the model:
-# myUnet.save_model("unet_model.pt")
-# myUnet.save_model_in_onnx("unet_model.onnx", input_sample= torch.randn(1, 3, 64, 64)) #Inputsize = (batch_size, channels, height, width)
+    # Train the model:
+    myUnet.train(train_loader,val_loader, epochs=1)
+
+    # Save the model:
+    # myUnet.save_model("unet_model.pt")
+    # myUnet.save_model_in_onnx("unet_model.onnx", input_sample= torch.randn(1, 3, 64, 64)) #Inputsize = (batch_size, channels, height, width)
 
 # Final evaluation:
 metrics = myUnet.evaluate(val_loader)
