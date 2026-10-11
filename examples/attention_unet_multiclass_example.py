@@ -4,6 +4,7 @@
 
 import sys
 import torch
+import mlflow
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.colors as mcolors
@@ -29,6 +30,7 @@ transforms = v2.Compose([
 ])
 
 NB_CLASSES = 5
+NAME_MODEL = "AttentionUnet5Classes"
 
 # DataPreparation:
 train_dataset = SegmentationDataset(root_dir="data/train", num_classes=NB_CLASSES, transform=transforms)
@@ -51,18 +53,20 @@ assert len(weights_for_class) == NB_CLASSES
 weights_type_loss = [0.7, 0.3]
 
 myLoss = CustomLoss(loss_fcns=[ DiceLoss(weights=weights_for_class), BCEWithLogitsLoss(weights=weights_for_class)], name="CustomLoss", coefficients=weights_type_loss)
-myAttUnet = AttentionUNet(input_channels=3, output_channels=NB_CLASSES, depth=4, initial_filters=32, loss_fn= myLoss, metrics=metrics)
-myAttUnet.create_model()
-myAttUnet.optimizer = torch.optim.Adam(params=myAttUnet.parameters(), lr=8e-4)
 
-myAttUnet.get_model_info()
+with mlflow.start_run(run_name=NAME_MODEL):
+    myAttUnet = AttentionUNet(input_channels=3, output_channels=NB_CLASSES, depth=4, initial_filters=32, loss_fn= myLoss, metrics=metrics)
+    myAttUnet.create_model()
+    myAttUnet.optimizer = torch.optim.Adam(params=myAttUnet.parameters(), lr=8e-4)
 
-# Train the model:
-myAttUnet.train(train_loader,val_loader, epochs=600)
+    myAttUnet.get_model_info()
 
-# Save the model:
-myAttUnet.save_model("attention_unet_model.pt")
-myAttUnet.save_model_in_onnx("attention_unet_model.onnx", input_sample= torch.randn(1, 3, 64, 64)) #Inputsize = (batch_size, channels, height, width)
+    # Train the model:
+    myAttUnet.train(train_loader,val_loader, epochs=600)
+
+    # Save the model:
+    myAttUnet.save_model("attention_unet_model.pt")
+    myAttUnet.save_model_in_onnx("attention_unet_model.onnx", input_sample= torch.randn(1, 3, 64, 64)) #Inputsize = (batch_size, channels, height, width)
 
 # Final evaluation:
 metrics = myAttUnet.evaluate(val_loader)

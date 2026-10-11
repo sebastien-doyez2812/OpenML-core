@@ -7,7 +7,7 @@ from .lib.convolutions import DoubleConv
 class UnetPPTorch(nn.Module):
     def __init__(self, input_channels=1, output_channels=1, depth=4, initial_filters=64,
                  kernel_size=3, padding=1):
-        super(UnetPPTorch, self).__init__()
+        super(UnetPPTorch, self).__init__(name= "Unet++")
         self.depth = depth
         self.downs      = nn.ModuleList()
         self.inter_down = nn.ModuleList()

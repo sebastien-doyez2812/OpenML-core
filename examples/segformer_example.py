@@ -3,6 +3,7 @@
 # This python script explained how to train a UNet++ modele using my Framework
 
 import sys
+import mlflow
 import torch
 import matplotlib.pyplot as plt
 import numpy as np
@@ -22,6 +23,7 @@ from torchvision.transforms import v2
 
 
 NB_CLASSES = 1
+NAME_MODEL = "SegFormer"
 SIZE = 256
 # Normalization:
 train_transforms = v2.Compose(
@@ -66,20 +68,22 @@ assert len(weights_for_class) == NB_CLASSES
 weights_type_loss = [0.8, 0.2]
 
 myLoss = CustomLoss(loss_fcns=[ DiceLoss(weights=weights_for_class), BCEWithLogitsLoss(weights=weights_for_class)], name="CustomLoss", coefficients=weights_type_loss)
-mySegformer = SegFormer(input_channels=3, output_channels=NB_CLASSES, H = SIZE, W = SIZE, depth=4, initial_filters=32, loss_fn= myLoss, metrics=metrics)
-mySegformer.create_model()
-mySegformer.load_nvidia_weights_into_custom_model()
-# mySegformer.load_model("checkpoint_SegFormer.pt")
 
-mySegformer.optimizer = torch.optim.AdamW(params=mySegformer.parameters(), lr=1e-4, weight_decay= 0.01, betas=(0.9, 0.999))
-mySegformer.get_model_info()
+with mlflow.start_run(run_name=NAME_MODEL):
+    mySegformer = SegFormer(input_channels=3, output_channels=NB_CLASSES, H = SIZE, W = SIZE, depth=4, initial_filters=32, loss_fn= myLoss, metrics=metrics)
+    mySegformer.create_model()
+    mySegformer.load_nvidia_weights_into_custom_model()
+    # mySegformer.load_model("checkpoint_SegFormer.pt")
 
-# Train the model:
-mySegformer.train(train_loader,val_loader, epochs=150)
+    mySegformer.optimizer = torch.optim.AdamW(params=mySegformer.parameters(), lr=1e-4, weight_decay= 0.01, betas=(0.9, 0.999))
+    mySegformer.get_model_info()
 
-# Save the model:
-mySegformer.save_model("segformer_model2.pt")
-mySegformer.save_model_in_onnx("segformer_model.onnx", input_sample= torch.randn(1, 3, SIZE, SIZE)) #Inputsize = (batch_size, channels, height, width)
+    # Train the model:
+    mySegformer.train(train_loader,val_loader, epochs=150)
+
+    # Save the model:
+    mySegformer.save_model("segformer_model2.pt")
+    mySegformer.save_model_in_onnx("segformer_model.onnx", input_sample= torch.randn(1, 3, SIZE, SIZE)) #Inputsize = (batch_size, channels, height, width)
 
 # Final evaluation:
 metrics = mySegformer.evaluate(val_loader)
