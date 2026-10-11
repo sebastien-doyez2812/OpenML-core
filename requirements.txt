@@ -3,6 +3,7 @@ torch
 tqdm
 onnx
 csv
+mlflow
 onnxscript
 torchinfo
 datasets

@@ -1,5 +1,6 @@
 import torch
 import csv
+import mlflow
 import torch.nn as nn
 from torchinfo import summary
 from torch.utils.data import DataLoader
@@ -7,7 +8,7 @@ from tqdm.auto import tqdm
 import numpy as np
 
 class BaseModel(nn.Module):
-    def __init__(self, name: str = "BaseModel", model = None, metrics = None, loss_fn = None, optimizer = None, device = None, write_result_in_CSV = True, csv_path= None):
+    def __init__(self, name: str = "BaseModel", model = None, metrics = None, loss_fn = None, optimizer = None, device = None, write_result_in_CSV = True, csv_path= None, use_mlflow = False):
         super().__init__()
         self.name = name
         self.model = model
@@ -16,6 +17,7 @@ class BaseModel(nn.Module):
         self.optimizer = optimizer
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         
+        self.use_mlflow = use_mlflow
         self.write_result_in_CSV = write_result_in_CSV
         if csv_path is None:
             self.csv_path = f"{self.name}.csv"
@@ -40,6 +42,17 @@ class BaseModel(nn.Module):
 
         self.model.to(self.device)
 
+        # MLFlow:
+        if self.use_mlflow:
+            lr = self.optimizer.param_groups[0]['lr'] if self.optimizer and len(self.optimizer.param_groups) > 0 else None
+            mlflow.log_params({
+                "model_name": self.name,
+                "epochs": epochs,
+                "learning_rate": lr,
+                "device": str(self.device)
+            })
+
+        # CSV Logger:
         if self.write_result_in_CSV:
             csv_fields = ["epoch", "train_loss"]
             for name_metric in self.metrics.keys():
@@ -164,6 +177,9 @@ class BaseModel(nn.Module):
 
                 formatted_metrics = " | ".join(metrics_summary_str)
                 tqdm.write(f"Epoch {current_epoch + 1}/{epochs} — Validation: {formatted_metrics}")
+
+                if self.use_mlflow:
+                    mlflow.log_metrics(epoch_metrics, step=current_epoch + 1)
                 
                 if self.write_result_in_CSV:
                     with open(self.csv_path, 'a', newline='', encoding='utf-8') as file:
