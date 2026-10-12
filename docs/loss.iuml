@@ -26,10 +26,6 @@ class HuberLoss {
     - delta : float
 }
 
-class KLDivergenceLoss {
-    esp: float
-}
-
 class CustomLoss {}
 
 CustomLoss --|> BaseLoss : heritage
@@ -38,7 +34,6 @@ MeanSquaredErrorLoss --|> BaseLoss : heritage
 DiceLoss --|> BaseLoss : heritage
 FocalLoss --|> BaseLoss : heritage
 HuberLoss --|> BaseLoss : heritage
-KLDivergenceLoss --|> BaseLoss : heritage
 
 class LossFactory {
     create_loss(loss_name: str) : BaseLoss
