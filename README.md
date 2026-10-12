@@ -7,22 +7,20 @@ Today's computer vision ecosystem is heavily fragmented. If you want YOLO, Ultra
 OpenML bridges this gap by bringing a clean, Hugging Face-inspired Developer Experience (DX) to advanced computer vision tasks—from classical models to SOTA transformers and parameter-efficient fine-tuning.
 ## Supported Architectures:
 
-- Classic & Deep Segmentation: U-Net, Attention U-Net, UNet++, Mask R-CNN
+- Classic & Deep Segmentation: U-Net, Attention U-Net, UNet++
 
-- Advanced Transformers: Swin Transformer, TransUNet, MobileUNetR
+- Advanced Transformers: MobileUnetR, SegFormer
 
-- SOTA & Edge: Vision Transformers, SAM 2 adaptations via efficient Low-Rank Adaptation (LoRA)
+- SOTA & Edge: Vision Transformers, SAM 2 adaptations via efficient Low-Rank Adaptation (LoRA) (Coming soon)
 ## Key features:
 
 Unified Object-Oriented API: Every model inherits from a clean ModelBase class supporting standard .train(), .eval(), and .help() workflows.
 
-Native LoRA Wrappers: Fine-tune massive vision models and transformers on modest hardware (like a single RTX 3070) without blowing up your VRAM.
+Native LoRA Wrappers: Fine-tune massive vision models and transformers on modest hardware (like a single RTX 3070) without blowing up your VRAM. (Coming soonn)
 
-Hugging Face Hub Integration: Push and pull checkpoints effortlessly using native .safetensors formatting.
+Hugging Face pretrained weights availablle
 
 MLflow Tracking Out-of-the-Box: Keep tabs on your losses, metrics, and hyperparameter logs without writing boilerplate monitoring code.
-
-Interactive Help System: Running model.help() directly opens up the exact architectural documentation page on the web.
 
 ## Contributions:
 
