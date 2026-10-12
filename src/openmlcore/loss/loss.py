@@ -29,6 +29,9 @@ class BaseLoss(nn.Module):
 class BCEWithLogitsLoss(BaseLoss):
     def __init__(self, weights=None):
         super().__init__(name="BCEWithLogitsLoss", doc_url="https://pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html")
+        if weights is None:
+            raise ValueError("weights need to be set!")
+                        
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
         pos_weights = None
@@ -48,6 +51,9 @@ class BCEWithLogitsLoss(BaseLoss):
 class DiceLoss(BaseLoss):
     def __init__(self, weights = None):
         super().__init__(name="DiceLoss", doc_url="https://arxiv.org/abs/1606.04797")
+        if weights is None:
+            raise ValueError("weights need to be set!")
+                        
         self.weights = weights
 
     def forward(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
@@ -71,76 +77,67 @@ class DiceLoss(BaseLoss):
 
             return dice_loss.sum(dim=1).mean()
         return dice_loss.mean()
-    
-# TODO:
-# 1 Hot encoding loss
-# 
-
 
 class MeanSquaredErrorLoss(BaseLoss):
-    def __init__(self, index_ignore=255):
+    def __init__(self, weights = None):
         super().__init__(name="MeanSquaredErrorLoss", doc_url="https://pytorch.org/docs/stable/generated/torch.nn.MSELoss.html")
-        self.index_ignore = index_ignore
+        if weights is None:
+            raise ValueError("weights need to be set!")
+                             
+        self.weights = weights
 
     def forward(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        num_classes = outputs.shape[1]
-        probs = F.softmax(outputs, dim=1)
-        targets_one_hot, valid_mask = self._to_one_hot_clean(targets, num_classes, self.index_ignore)
-        
-        mse = (probs - targets_one_hot) ** 2
-        mse = mse * valid_mask
-        
-        num_valids = valid_mask.sum() * num_classes
-        return mse.sum() / torch.clamp(num_valids, min=1.0)
+        probs = torch.sigmoid(outputs)
+        probs   = probs.view  (probs.size(0)  , probs.size(1), -1)
+        targets = targets.view(probs.size(0), probs.size(1), -1)
 
+        mse = (probs - targets) ** 2
+        weighted_mse = 0
+        for idx, weight in enumerate(self.weights):
+            weighted_mse+= weight * mse[:, idx, :]
 
+        return weighted_mse.mean()
 
 class FocalLoss(BaseLoss):
-    def __init__(self, alpha=0.25, gamma=2.0, index_ignore=255):
+    def __init__(self, alpha=0.25, gamma=2.0, weights = None):
         super().__init__(name="FocalLoss", doc_url="https://arxiv.org/abs/1708.02002")
+        if weights is None:
+            raise ValueError("weights need to be set!")
+                        
         self.alpha = alpha
         self.gamma = gamma
-        self.index_ignore = index_ignore
+        self.weights = weights
 
     def forward(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        num_classes = outputs.shape[1]
-        targets_one_hot, valid_mask = self._to_one_hot_clean(targets, num_classes, self.index_ignore)
-        
-        bce_loss = F.binary_cross_entropy_with_logits(outputs, targets_one_hot, reduction='none')
+        probs   = outputs.view(outputs.size(0)  , outputs.size(1), -1)
+        targets = targets.view(outputs.size(0), outputs.size(1), -1)
+
+        bce_loss = F.binary_cross_entropy_with_logits(probs, targets, reduction='none') # Apply a sigmoid inside...
         pt = torch.exp(-bce_loss)
         focal_loss = self.alpha * ((1 - pt) ** self.gamma) * bce_loss
-        focal_loss = focal_loss * valid_mask
-        num_valids = valid_mask.sum() * num_classes
-        return focal_loss.sum() / torch.clamp(num_valids, min=1.0)
+
+        final_loss = 0
+        for idx, weight in enumerate(self.weights):
+            final_loss += weight * focal_loss[:, idx, :]
+        return final_loss.mean()
     
-class MeanSquaredErrorLoss(BaseLoss):
-    def __init__(self, index_ignore=255):
-        super().__init__(name="MeanSquaredErrorLoss", doc_url="https://pytorch.org/docs/stable/generated/torch.nn.MSELoss.html")
-        self.index_ignore = index_ignore
-
-    def forward(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        num_classes = outputs.shape[1]
-        probs = F.softmax(outputs, dim=1)
-        targets_one_hot, valid_mask = self._to_one_hot_clean(targets, num_classes, self.index_ignore)
-        
-        mse = (probs - targets_one_hot) ** 2
-        mse = mse * valid_mask
-        
-        num_valids = valid_mask.sum() * num_classes
-        return mse.sum() / torch.clamp(num_valids, min=1.0)
-
 class HuberLoss(BaseLoss):
-    def __init__(self, delta=1.0, index_ignore=255):
+    def __init__(self, delta=1.0, weights = None):
         super().__init__(name="HuberLoss", doc_url="https://pytorch.org/docs/stable/generated/torch.nn.HuberLoss.html")
+        if weights is None:
+            raise ValueError("weights need to be set!")
+        self.weights = weights
         self.delta = delta
-        self.index_ignore = index_ignore
 
     def forward(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        num_classes = outputs.shape[1]
-        probs = F.softmax(outputs, dim=1)
-        targets_one_hot, valid_mask = self._to_one_hot_clean(targets, num_classes, self.index_ignore)
-        
-        error = probs - targets_one_hot
+        # num_classes = outputs.shape[1]
+        # probs = F.softmax(outputs, dim=1)
+
+        probs = torch.sigmoid(outputs)
+        probs   = probs.view  (probs.size(0)  , probs.size(1), -1)
+        targets = targets.view(probs.size(0), probs.size(1), -1)
+
+        error = probs - targets
         abs_error = torch.abs(error)
         
         huber = torch.where(
@@ -148,30 +145,15 @@ class HuberLoss(BaseLoss):
             0.5 * (error ** 2),
             self.delta * (abs_error - 0.5 * self.delta)
         )
-        huber = huber * valid_mask
-        
-        num_valids = valid_mask.sum() * num_classes
-        return huber.sum() / torch.clamp(num_valids, min=1.0)
+
+        if not isinstance(self.weights, torch.Tensor):
+            weights_tensor = torch.tensor(self.weights, device=outputs.device, dtype=outputs.dtype)
+        else:
+            weights_tensor = self.weights.to(outputs.device)
+        huber = huber * weights_tensor.view(1, -1, 1)
+            
+        return huber.mean()
     
-class KLDivergenceLoss(BaseLoss):
-    def __init__(self, index_ignore=255):
-        super().__init__(name="KLDivergenceLoss", doc_url="https://pytorch.org/docs/stable/generated/torch.nn.KLDivLoss.html")
-        self.eps = 1e-8
-        self.index_ignore = index_ignore
-
-    def forward(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        num_classes = outputs.shape[1]
-        log_probs = F.log_softmax(outputs, dim=1)
-        targets_one_hot, valid_mask = self._to_one_hot_clean(targets, num_classes, self.index_ignore)
-        
-        # KL-Div = p(x) * (log(p(x)) - log(q(x)))
-        # Pour une distribution One-Hot, cela se réduit à : - log(q(x)) sur la classe vraie
-        kl = F.kl_div(log_probs, targets_one_hot, reduction='none')
-        kl = kl * valid_mask
-        
-        num_valids = valid_mask.sum() * num_classes
-        return kl.sum() / torch.clamp(num_valids, min=1.0)
-
 ####################################
 #   Custom Loss implementation     #
 ####################################
