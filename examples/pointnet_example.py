@@ -18,7 +18,9 @@ from torch.utils.data import DataLoader, Subset
 from src.openmlcore.models.pointnet import PointNet
 from src.openmlcore.base.data3d import Segmentation3dDataset
 from src.openmlcore.metrics.metrics3d import *
-from torchvision.transforms import v2
+
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 import torch.nn as nn #todo to remove
 NB_CLASSES = 4
@@ -34,7 +36,7 @@ val_loader   = DataLoader(val_dataset, batch_size=4, shuffle=True)
 #todo : improve metrics
 # Metrics
 metrics = {
-    # "Accuracy": accuracy3d,
+    "Accuracy": accuracy3d,
     "IoU": iou3d,
     # "Precision": Precision3d,
     # "Recall": Recall3d,
@@ -53,66 +55,127 @@ with mlflow.start_run(run_name=NAME_MODEL):
     myPoinNet = PointNet(input_channels=3, output_channels=NB_CLASSES, loss_fn= myLoss, metrics=metrics)
     myPoinNet.create_model()
     
-    myPoinNet.optimizer = torch.optim.Adam(params=myPoinNet.parameters(), lr=8e-4)
+    myPoinNet.optimizer = torch.optim.Adam(params=myPoinNet.parameters(), lr=0.0005)
 
     myPoinNet.get_model_info()
 
     # Train the model:
-    myPoinNet.train(train_loader,val_loader, epochs=600)
+    myPoinNet.train(train_loader,val_loader, epochs=5)
 
     # Save the model:
-    myPoinNet.save_model("attention_unet_model.pt")
-    myPoinNet.save_model_in_onnx("attention_unet_model.onnx", input_sample= torch.randn(1, 3, 64, 64)) #Inputsize = (batch_size, channels, height, width)
+    myPoinNet.save_model("pointnet_model.pt")
+    # myPoinNet.save_model_in_onnx("pointnet_model.onnx", input_sample= torch.randn(1, 3, 64, 64)) #Inputsize = (batch_size, channels, height, width)
 
 # Final evaluation:
-metrics = myPoinNet.evaluate(val_loader)
-print(metrics)
+# metrics = myPoinNet.evaluate(val_loader)
+# print(metrics)
 
-# # Show the result:
-# # Define the name of classes:
-# class_names = ["Cells"] 
 
-# assert len(class_names) == NB_CLASSES
-# cmap_6 = mcolors.ListedColormap(plt.cm.tab10.colors[:len(class_names)])
+#################
+# Visualisation #
+#################
+import torch
+import numpy as np
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
-# # Run on validation...
-# data_iter = iter(val_loader)
-# for i in range(10):    
-#     given_input, GT = next(data_iter)
+def predict_full_scene(model, dataset, scene_base_path, num_points=2048):
+    model.model.eval()
     
-#     with torch.no_grad():
-#         predictions = myAttUnet.predict(given_input)
-
-#     img = given_input[0].permute(1, 2, 0).cpu().numpy()
-#     mean = np.array([0.485, 0.456, 0.406])
-#     std = np.array([0.229, 0.224, 0.225])
-#     img_rgb = np.clip(img * std + mean, 0, 1)
+    # Charger la scène complète via la méthode du dataset
+    points, ground_truth = dataset._load_scene_data(scene_base_path)
+    total_points = points.shape[0]
     
-#     prob_map = torch.sigmoid(predictions[0][0])
-#     pred_class = (prob_map > 0.5).float().cpu().numpy()
+    all_preds = np.zeros(total_points, dtype=np.int64)
     
-#     print(f"Prob min={prob_map.min():.3f}, max={prob_map.max():.3f} | Pixels cellules={int(pred_class.sum())}")
+    with torch.no_grad():
+        for start_idx in range(0, total_points, num_points):
+            end_idx = min(start_idx + num_points, total_points)
+            block_points = points[start_idx:end_idx]
+            
+            current_count = block_points.shape[0]
+            
+            # Padding si le bloc est plus petit que num_points
+            if current_count < num_points:
+                pad_indices = np.random.choice(current_count, num_points - current_count, replace=True)
+                block_points_padded = np.vstack([block_points, block_points[pad_indices]])
+            else:
+                block_points_padded = block_points
+            
+            # Normalisation identique à celle du Dataset
+            centroid = np.mean(block_points_padded, axis=0)
+            block_centered = block_points_padded - centroid
+            max_dist = np.max(np.sqrt(np.sum(block_centered ** 2, axis=1)))
+            block_normalized = block_centered / max_dist if max_dist > 0 else block_centered
+                
+            # Passage au format tenseur (1, 3, N) et envoi sur le bon device
+            points_tensor = torch.tensor(block_normalized, dtype=torch.float32).transpose(1, 0).unsqueeze(0).to(model.device)
+            
+            outputs = model.model(points_tensor)  # Shape: (1, C, N)
+            preds = torch.argmax(outputs, dim=1).squeeze(0).cpu().numpy()
+            
+            all_preds[start_idx:end_idx] = preds[:current_count]
+            
+    # Ajuster ground_truth de [1..C] à [0..C-1] pour matcher les prédictions du modèle
+    ground_truth_adjusted = ground_truth - 1
+    
+    return points, ground_truth_adjusted, all_preds
 
-#     if GT[0].ndim == 3:
-#         gt_class = GT[0][0].cpu().numpy()
-#     else:
-#         gt_class = GT[0].cpu().numpy()
+# --- Exécution de la visualisation ---
+# Sélectionner la première scène de validation
+sample_scene_dir = val_dataset.scene_dirs[0] 
 
-#     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+points_np, ground_truth, preds = predict_full_scene(myPoinNet, val_dataset, sample_scene_dir, num_points=2048)
+print(f"Scène complète chargée : {points_np.shape[0]} points.")
 
-#     axes[0].imshow(img_rgb)
-#     axes[0].set_title("Image", fontsize=12)
-#     axes[0].axis("off")
+# Création de la figure Plotly 1x2
+fig = make_subplots(
+    rows=1, cols=2,
+    specs=[[{'type': 'scatter3d'}, {'type': 'scatter3d'}]],
+    subplot_titles=("<b>Vérité Terrain (Ground Truth)</b>", "<b>Prédictions PointNet</b>")
+)
 
-#     axes[1].imshow(img_rgb)
-#     axes[1].imshow(gt_class, cmap="Reds", alpha=0.5, vmin=0, vmax=1)
-#     axes[1].set_title("Ground Truth", fontsize=12)
-#     axes[1].axis("off")
+# Trace 1 : Vérité terrain
+fig.add_trace(
+    go.Scatter3d(
+        x=points_np[:, 0], y=points_np[:, 1], z=points_np[:, 2],
+        mode='markers',
+        marker=dict(
+            size=2,  
+            color=ground_truth,
+            colorscale='Viridis',
+            opacity=0.9,
+            colorbar=dict(title="Classes GT", x=0.45)
+        ),
+        name='Ground Truth'
+    ),
+    row=1, col=1
+)
 
-#     axes[2].imshow(img_rgb)
-#     axes[2].imshow(pred_class, cmap="Reds", alpha=0.5, vmin=0, vmax=1)
-#     axes[1].set_title("Predictions", fontsize=12)
-#     axes[2].axis("off")
+# Trace 2 : Prédictions du modèle
+fig.add_trace(
+    go.Scatter3d(
+        x=points_np[:, 0], y=points_np[:, 1], z=points_np[:, 2],
+        mode='markers',
+        marker=dict(
+            size=2,
+            color=preds,
+            colorscale='Viridis',
+            opacity=0.9,
+            colorbar=dict(title="Classes Pred", x=1.0)
+        ),
+        name='Prediction'
+    ),
+    row=1, col=2
+)
 
-#     plt.tight_layout()
-#     plt.show()
+# Mise en page
+fig.update_layout(
+    title_text="<b>Comparaison 3D - Validation PointNet</b>",
+    width=1300,
+    height=750,
+    scene=dict(xaxis_title='X', yaxis_title='Y', zaxis_title='Z', aspectmode='data'),
+    scene2=dict(xaxis_title='X', yaxis_title='Y', zaxis_title='Z', aspectmode='data')
+)
+
+fig.show()
