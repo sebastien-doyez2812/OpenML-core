@@ -1,33 +1,78 @@
 import numpy as np
+import torch 
 
-def iou3d(preds, labels, nb_classes):
-    pred_flatten = preds.flatten()
-    label_flatten = labels.flatten()
+def iou3d(preds, targets):
+    num_batches = preds.shape[0]
+    num_classes = preds.shape[1]  
 
-    iou_tab = []
-    for idx_class in range(1, nb_classes+1):
-        pred_mask = (pred_flatten == idx_class)
-        target_mask = (label_flatten == idx_class)
+    metric_to_return = [0.0] * num_classes
+    valid_batches_per_class = [0] * num_classes 
 
-        intersection = np.logical_and(pred_mask, target_mask).sum()
-        union = np.logical_or(pred_mask, target_mask).sum()
+    for idx_current_batch in range(num_batches):
+        for idx_class in range(num_classes):
+            pred = preds[idx_current_batch, idx_class]
+            gt = targets[idx_current_batch, idx_class]
 
-        if union == 0:
-            iou_tab.append()
+            pred_mask = (pred > 0.5)
+            gt_mask = (gt > 0.5)
+
+            intersection = torch.logical_and(pred_mask, gt_mask).sum().item()
+            union = torch.logical_or(pred_mask, gt_mask).sum().item()
+
+            if union > 0:
+                iou = intersection / union
+                metric_to_return[idx_class] += iou
+                valid_batches_per_class[idx_class] += 1
+
+    final_metric = []
+    for i in range(num_classes):
+        if valid_batches_per_class[i] > 0:
+            final_metric.append(metric_to_return[i] / valid_batches_per_class[i])
         else:
-            iou_tab.append(intersection / union)
+            final_metric.append(float('nan')) 
 
-    return iou_tab
+    return final_metric
 
-def accuracy3d(preds, labels):
-    pred_flatten = preds.flatten()
-    label_flatten = labels.flatten()
-    
-    correct = np.sum(pred_flatten == label_flatten)
-    total = len(label_flatten)
-    accuracy = correct / total if total > 0 else 0.0
-    return accuracy
+def accuracy3d(preds, targets):
+    num_batches = preds.shape[0]
+    num_classes = preds.shape[1]  
 
+    metrics_to_return = [0.0] * num_classes
+    valid_batches_per_class = [0] * num_classes 
+
+    for idx_current_batch in range(num_batches):
+        pred_batch = preds[idx_current_batch] 
+        
+        if targets.ndim == preds.ndim:
+            target_batch = targets[idx_current_batch] # Shape: (C, ...)
+        else:
+            target_indices = targets[idx_current_batch] # Shape: (...)
+
+        for idx_class in range(num_classes):
+            pred = pred_batch[idx_class]
+            pred_mask = (pred > 0.5) 
+
+            if targets.ndim == preds.ndim:
+                gt_mask = (target_batch[idx_class] > 0.5)
+            else:
+                gt_mask = (target_indices == idx_class)
+
+            correct = torch.sum(pred_mask == gt_mask).item()
+            total = gt_mask.numel()
+            
+            if total > 0:
+                current_acc = correct / total
+                metrics_to_return[idx_class] += current_acc
+                valid_batches_per_class[idx_class] += 1
+
+    final_metric = []
+    for i in range(num_classes):
+        if valid_batches_per_class[i] > 0:
+            final_metric.append(metrics_to_return[i] / valid_batches_per_class[i])
+        else:
+            final_metric.append(float('nan')) 
+
+    return final_metric
 
 def Precision3d(preds, labels, nb_classes):
     pred_flatten = preds.flatten()
