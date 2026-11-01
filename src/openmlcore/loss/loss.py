@@ -7,12 +7,16 @@ class BaseLoss(nn.Module):
     def __init__(self, name: str = "BaseLoss", doc_url: str = ""):
         super().__init__()
         self.name = name
+        self.type = "segmetation2d"
         self.smooth = 1e-6
         self.doc_url = doc_url
 
     def forward(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError("Subclasses should implement this method.")
 
+    def get_type(self):
+        return self.type
+        
     def documentation(self) -> str:
         print(f"Documentation for {self.name} is available here:\n{self.doc_url}")
         try:
