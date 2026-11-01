@@ -7,12 +7,16 @@ class BaseLoss(nn.Module):
     def __init__(self, name: str = "BaseLoss", doc_url: str = ""):
         super().__init__()
         self.name = name
+        self.type = "segmetation2d"
         self.smooth = 1e-6
         self.doc_url = doc_url
 
     def forward(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError("Subclasses should implement this method.")
 
+    def get_type(self):
+        return self.type
+        
     def documentation(self) -> str:
         print(f"Documentation for {self.name} is available here:\n{self.doc_url}")
         try:
@@ -22,9 +26,9 @@ class BaseLoss(nn.Module):
             print(f"[-] {e}")
 
     
-#############################
-#   Class Loss Functions    #
-#############################
+################################################
+#   Class Loss Functions for 2d Segmentation   #
+################################################
 
 class BCEWithLogitsLoss(BaseLoss):
     def __init__(self, weights=None):
@@ -189,4 +193,10 @@ class CustomLoss(BaseLoss):
         for loss_fn, coef in zip(self.loss_fcns, self.coefficients):
             total_loss += coef * loss_fn(outputs, targets)
         return total_loss
-    
+
+
+
+
+################################################
+#   Class Loss Functions for 3d Segmentation   #
+################################################
