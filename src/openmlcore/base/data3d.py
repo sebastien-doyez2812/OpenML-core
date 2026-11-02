@@ -21,10 +21,11 @@ class Segmentation3dDataset(Dataset):
 
         self.scene_dirs = self._get_object_paths(self.dataset_path) # Only treat the airplane!
         total_data = len(self.scene_dirs)
+        split_idx = int(total_data * 0.8)
         if split.lower() == "train":
-            self.scene_dirs = self.scene_dirs[:int(total_data * 0.8)]
+            self.scene_dirs = self.scene_dirs[:split_idx]
         else: 
-            self.scene_dirs = self.scene_dirs[int(total_data * 0.2):]
+            self.scene_dirs = self.scene_dirs[split_idx:]
 
     def _get_object_paths(self, dataset_path):
         # Dataset should be like:
