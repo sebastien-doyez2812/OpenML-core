@@ -1,0 +1,6 @@
+torch
+tqdm
+onnx
+onnxscript
+torchinfo
+datasets
