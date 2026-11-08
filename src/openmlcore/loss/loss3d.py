@@ -77,6 +77,9 @@ class DiceLoss3d(Base3dLoss):
         probs = F.softmax(outputs, dim=1)
         B, C, N = probs.shape
 
+        if targets.min() < -1 or targets.max() > C:
+            raise ValueError("target at -1")
+
         targets_one_hot = F.one_hot(targets.long(), num_classes=C)
         targets_one_hot = targets_one_hot.permute(0, 2, 1).float()
 

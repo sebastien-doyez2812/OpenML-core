@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openmlcore"               
-version = "1.2.0"                 
+version = "2.0.2"                 
 authors = [
   { name="Doyez Sébastien", email="doyez.sebastien34090@gmail.com" },
 ]

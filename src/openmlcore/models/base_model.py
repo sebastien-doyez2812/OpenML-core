@@ -76,6 +76,10 @@ class BaseModel(nn.Module):
                 dynamic_ncols=True,
             )
             for idx, (X_batch, Y_batch) in enumerate(progress_bar, start=1):
+                if Y_batch.min() <= -1:
+                    print(f"[-] Error in training: Min: {Y_batch.min().item()}.\n Skipping the batch.")
+                    continue
+
                 X_batch, Y_batch = X_batch.to(self.device), Y_batch.to(self.device)
                 
                 self.optimizer.zero_grad()
