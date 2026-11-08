@@ -12,6 +12,9 @@ OpenML bridges this gap by bringing a clean, Hugging Face-inspired Developer Exp
 - Advanced Transformers: MobileUnetR, SegFormer
 
 - SOTA & Edge: Vision Transformers, SAM 2 adaptations via efficient Low-Rank Adaptation (LoRA) (Coming soon)
+
+- 3d Point clouds segmentation with PointNet and PointNet++
+   
 ## Key features:
 
 Unified Object-Oriented API: Every model inherits from a clean ModelBase class supporting standard .train(), .eval(), and .help() workflows.
