@@ -10,30 +10,23 @@
 # We should return a list of 3 elements like [IoU_sky, IoU_Road, IoU_Car]
 import torch
 
+
 def accuracy(y_pred, y_true):
-    num_batches = y_true.shape[0]
     num_classes = y_true.shape[1]
+    accuracies = []
 
-    metric_to_return = [0.0] * num_classes
-    for idx_current_batch in range(num_batches):
-        current_metrics = []
-        for idx_class in range(num_classes):
-            pred = (y_pred[idx_current_batch, idx_class, :, :] > 0.0).float()
-            gt   = y_true[idx_current_batch, idx_class, :, :]
+    preds = (y_pred > 0.0).float()
+    trues = (y_true > 0.0).float()
 
-            correct = (pred == gt).float()
-            accuracy = (pred == gt).float().mean().item()
+    for idx_class in range(num_classes):
+        curr_pred = preds[:, idx_class]
+        curr_true = trues[:, idx_class]
 
-            current_metrics.append(accuracy)
-        
-        for i in range(num_classes):
-            metric_to_return[i] += current_metrics[i]
+        acc = (curr_pred == curr_true).float().mean().item()
+        accuracies.append(acc)
 
-    final_metric = [0.0] * num_classes
-    for idx, metric in enumerate(metric_to_return):
-        final_metric[idx] = metric / num_batches 
-    return final_metric
-    
+    return accuracies
+
 def iou(y_pred, y_true, threshold = 0.5, smooth = 1e-6):
     preds = (y_pred > threshold).float()
 
