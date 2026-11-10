@@ -67,6 +67,10 @@ class BaseModel(nn.Module):
             # Training:
             self.model.train()
             total_loss = 0.0
+            processed_batches = 0
+            train_dict_metrics_sum = {}
+
+
             total_steps = len(train_loader)
             progress_bar = tqdm(
                 train_loader,
@@ -90,18 +94,78 @@ class BaseModel(nn.Module):
                 self.optimizer.step()
                 batch_loss = loss.item()
                 total_loss += batch_loss
+                processed_batches +=1 
+
                 progress_bar.set_postfix(
                     batch_loss=f"{batch_loss:.4f}",
-                    avg_loss=f"{total_loss / idx:.4f}",
+                    avg_loss=f"{total_loss / processed_batches:.4f}",
                 )
-            avg_loss = total_loss / len(train_loader)
-            tqdm.write(f"Epoch {current_epoch + 1}/{epochs} — average loss: {avg_loss:.4f}")
 
+                # Metrics during training:
+                for name_metric, metric_fn in self.metrics.items():
+                    metric_value = metric_fn(prediction, Y_batch)
+                    if isinstance(metric_value, torch.Tensor):
+                        metric_value = metric_value.detach().cpu()
+                        if metric_value.ndim > 1:
+                            metric_value = metric_value.mean(dim=0)
+                        
+                        if metric_value.ndim == 0:
+                            metric_value = metric_value.item()
+                        else:
+                            metric_value = metric_value.tolist()
+
+                    elif isinstance(metric_value, np.ndarray):
+                        if metric_value.ndim > 1:
+                            metric_value = metric_value.mean(axis=0)
+                        
+                        if metric_value.ndim == 0:
+                            metric_value = metric_value.item()
+                        else:
+                            metric_value = metric_value.tolist()
+
+                    if isinstance(metric_value, list) and len(metric_value) > 0 and isinstance(metric_value[0], list):
+                        metric_value = [sum(col) / len(col) for col in zip(*metric_value)]
+
+                    if name_metric not in train_dict_metrics_sum:
+                        if isinstance(metric_value, list):
+                            train_dict_metrics_sum[name_metric] = [0.0] * len(metric_value)
+                        else:
+                            train_dict_metrics_sum[name_metric] = 0.0
+
+                    if isinstance(metric_value, list):
+                        for cls_i, val in enumerate(metric_value):
+                            train_dict_metrics_sum[name_metric][cls_i] += float(val)
+                    else:
+                        train_dict_metrics_sum[name_metric] += float(metric_value)
+            if processed_batches == 0:
+                print("[w] All Batches were skippedd in this epoch!")
+                continue
+
+            metrics_summary_str = []
+            avg_loss = total_loss / processed_batches
 
             # Create a dictionnary for the csv:
             epoch_metrics = {"epoch": current_epoch,
                              "train_loss" : avg_loss}
+
+            for name_metric, val_sum in train_dict_metrics_sum.items():
+                if isinstance(val_sum, list):
+                    avg_list = [v / processed_batches for v in val_sum]
+                    mean_all_classes = sum(avg_list) / len(avg_list)
+
+                    class_details = ", ".join([f"C{i}:{v:.3f}" for i, v in enumerate(avg_list)])
+                    metrics_summary_str.append(f"{name_metric}_Mean: {mean_all_classes:.4f} ({class_details})")
+                    
+                    # Harmonisation des clés (utilise train_ ou val_ selon ton CSV)
+                    epoch_metrics[f"val_{name_metric}"] = mean_all_classes
+                else:
+                    avg_val = val_sum / processed_batches
+                    metrics_summary_str.append(f"{name_metric}: {avg_val:.4f}")
+                    epoch_metrics[f"val_{name_metric}"] = avg_val  # Corrigé de 'train_' à 'val_' pour correspondre au CSV
             
+            formatted_metrics = " | ".join(metrics_summary_str)
+            tqdm.write(f"Epoch {current_epoch + 1}/{epochs} — average loss: {avg_loss:.4f} \n{formatted_metrics }")
+
             # Validation:
             if val_loader:
                 self.model.eval()
