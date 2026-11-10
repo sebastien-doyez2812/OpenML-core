@@ -23,12 +23,12 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 import torch.nn as nn #todo to remove
-NB_CLASSES = 4
+NB_CLASSES = 5 # 4 + 1 (noise)
 NAME_MODEL = "PointNet"
 
 # DataPreparation:
-train_dataset = Segmentation3dDataset(dataset_path="data\Dataset\Skateboard", split="train")
-val_dataset   = Segmentation3dDataset(dataset_path="data\Dataset\Skateboard", split="val")
+train_dataset = Segmentation3dDataset(dataset_path="data\Dataset\Airplane", split="train")
+val_dataset   = Segmentation3dDataset(dataset_path="data\Dataset\Airplane", split="val")
 
 train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, drop_last=True)
 val_loader   = DataLoader(val_dataset, batch_size=4, shuffle=True, drop_last=True)
@@ -39,7 +39,7 @@ metrics = {
     "IoU": iou3d
 }
 
-weights_for_class = torch.tensor([1.0, 1.0, 1.0, 1.0])
+weights_for_class = torch.tensor([1.0, 1.0, 1.0, 1.0, 1.0])
 assert len(weights_for_class) == NB_CLASSES
 weights_type_loss = [0.7, 0.3]
 
@@ -54,7 +54,7 @@ with mlflow.start_run(run_name=NAME_MODEL):
     myPoinNet.get_model_info()
 
     # Train the model:
-    myPoinNet.train(train_loader,val_loader, epochs=2)
+    myPoinNet.train(train_loader,val_loader, epochs=5)
 
     # Save the model:
     myPoinNet.save_model("pointnet_model.pt")
