@@ -56,6 +56,9 @@ class BaseModel(nn.Module):
         if self.write_result_in_CSV:
             csv_fields = ["epoch", "train_loss"]
             for name_metric in self.metrics.keys():
+                csv_fields.append(f"train_{name_metric}")
+            
+            for name_metric in self.metrics.keys():
                 csv_fields.append(f"val_{name_metric}")
 
             with open(self.csv_path, 'w', newline='', encoding='utf-8') as file:
@@ -155,13 +158,14 @@ class BaseModel(nn.Module):
 
                     class_details = ", ".join([f"C{i}:{v:.3f}" for i, v in enumerate(avg_list)])
                     metrics_summary_str.append(f"{name_metric}_Mean: {mean_all_classes:.4f} ({class_details})")
-                    
-                    # Harmonisation des clés (utilise train_ ou val_ selon ton CSV)
-                    epoch_metrics[f"val_{name_metric}"] = mean_all_classes
+                    for idx, value in enumerate(avg_list):
+                        epoch_metrics[f"train_{name_metric}_C{idx}"] = value
+                                        
+                    epoch_metrics[f"train_{name_metric}"] = mean_all_classes
                 else:
                     avg_val = val_sum / processed_batches
                     metrics_summary_str.append(f"{name_metric}: {avg_val:.4f}")
-                    epoch_metrics[f"val_{name_metric}"] = avg_val  # Corrigé de 'train_' à 'val_' pour correspondre au CSV
+                    epoch_metrics[f"train_{name_metric}"] = avg_val  
             
             formatted_metrics = " | ".join(metrics_summary_str)
             tqdm.write(f"Epoch {current_epoch + 1}/{epochs} — average loss: {avg_loss:.4f} \n{formatted_metrics }")
@@ -235,7 +239,7 @@ class BaseModel(nn.Module):
                         metrics_summary_str.append(f"{name_metric}_Mean: {mean_all_classes:.4f} ({class_details})")
                         epoch_metrics[f"val_{name_metric}"] = mean_all_classes
                         for idx, value in enumerate(avg_list):
-                            epoch_metrics[f"val_{name_metric}"] = value
+                            epoch_metrics[f"val_{name_metric}_C{idx}"] = value
                     
                     else:
                         avg_val = val_sum / num_batchs
@@ -246,13 +250,13 @@ class BaseModel(nn.Module):
                 formatted_metrics = " | ".join(metrics_summary_str)
                 tqdm.write(f"Epoch {current_epoch + 1}/{epochs} — Validation: {formatted_metrics}")
 
-                if self.use_mlflow:
-                    mlflow.log_metrics(epoch_metrics, step=current_epoch + 1)
+            if self.use_mlflow:
+                mlflow.log_metrics(epoch_metrics, step=current_epoch + 1)
                 
-                if self.write_result_in_CSV:
-                    with open(self.csv_path, 'a', newline='', encoding='utf-8') as file:
-                        writer = csv.DictWriter(file, fieldnames=csv_fields, extrasaction='ignore')
-                        writer.writerow(epoch_metrics)
+            if self.write_result_in_CSV:
+                with open(self.csv_path, 'a', newline='', encoding='utf-8') as file:
+                    writer = csv.DictWriter(file, fieldnames=csv_fields, extrasaction='ignore')
+                    writer.writerow(epoch_metrics)
                 
             if save_checkpoint:
                 self.save_model(f"checkpoint_{self.name}.pt")
