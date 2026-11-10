@@ -168,7 +168,7 @@ class Segmentation3dDataset(Dataset):
                     
         points_normalized =  self._normalize_point_cloud(points_sampled)
         points_tensor = torch.tensor(points_normalized, dtype=torch.float32).transpose(1, 0)
-        labels_tensor = torch.tensor(labels_sampled - 1, dtype=torch.long)
+        labels_tensor = torch.tensor(labels_sampled, dtype=torch.long)
 
         return points_tensor, labels_tensor
            
